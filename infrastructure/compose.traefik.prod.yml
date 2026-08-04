@@ -60,7 +60,7 @@ services:
     restart: 'no'
     logging: *default-logging
     working_dir: /app/apps/api
-    command: ['node', 'dist/cli/deploy-migrations.mjs']
+    command: ['node_modules/.bin/prisma', 'migrate', 'deploy']
     environment:
       DATABASE_URL: ${DATABASE_URL}
     depends_on:

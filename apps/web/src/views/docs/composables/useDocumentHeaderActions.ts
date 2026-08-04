@@ -6,7 +6,6 @@ import { translate } from '@/i18n'
 import { ElMessage } from '@/utils/element-plus'
 import { useActiveDocument } from './useActiveDocument'
 import { useDocsChatPanel } from './useDocsChatPanel'
-import { useDocsCollaborationDialog } from './useDocsCollaborationDialog'
 import { useDocsHistoryState } from './useDocsHistoryState'
 import { useDocsPublicationDialog } from './useDocsPublicationDialog'
 
@@ -17,7 +16,6 @@ export function useDocumentHeaderActions() {
     togglePanel: toggleDocsChatPanel,
   } = useDocsChatPanel()
   const { openHistoryMode } = useDocsHistoryState()
-  const { openDocumentCollaborationDialog } = useDocsCollaborationDialog()
   const { openDocumentPublicationDialog } = useDocsPublicationDialog()
   const isPageWidthUpdating = shallowRef(false)
 
@@ -25,20 +23,9 @@ export function useDocumentHeaderActions() {
   const currentPageWidthMode = computed<DocumentPageWidthMode>(() =>
     currentDocument.value?.pageWidthMode ?? DOCUMENT_PAGE_WIDTH_MODE.DEFAULT,
   )
-  const canShowCollaborationButton = computed(() =>
-    Boolean(documentId.value && currentDocument.value?.access.capabilities.canManageCollaboration),
-  )
   const canShowPublicationButton = computed(() =>
     Boolean(documentId.value && currentDocument.value?.access.capabilities.canPublish),
   )
-
-  function openCollaborationDialog() {
-    if (!documentId.value) {
-      return
-    }
-
-    openDocumentCollaborationDialog(documentId.value)
-  }
 
   function openPublicationDialog() {
     if (!documentId.value) {
@@ -88,9 +75,7 @@ export function useDocumentHeaderActions() {
     handleMenuCommand,
     handlePageWidthOptionClick,
     isDocsChatPanelOpen,
-    canShowCollaborationButton,
     canShowPublicationButton,
-    openCollaborationDialog,
     openPublicationDialog,
     toggleDocsChatPanel,
   }

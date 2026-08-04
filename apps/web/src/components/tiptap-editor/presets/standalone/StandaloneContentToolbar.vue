@@ -41,9 +41,7 @@ const props = withDefaults(defineProps<StandaloneContentToolbarProps>(), {
 const { t } = useI18n({ useScope: 'global' })
 const editor = props.editor
 const imageInputRef = shallowRef<HTMLInputElement | null>(null)
-const editorSnapshot = useEditorSnapshot(editor, {
-  ignoreCollaborationOrigin: true,
-})
+const editorSnapshot = useEditorSnapshot(editor)
 const linkPanel = useLinkPanel(() => editor)
 const actionRegistry = createMenuActionRegistry({
   editor,

@@ -60,7 +60,7 @@ services:
     restart: 'no'
     logging: *default-logging
     working_dir: /app/apps/api
-    command: ['node_modules/.bin/prisma', 'migrate', 'deploy']
+    command: ['node', 'dist/cli/deploy-migrations.mjs']
     environment:
       DATABASE_URL: ${DATABASE_URL}
     depends_on:
@@ -112,37 +112,6 @@ services:
       retries: 12
       start_period: 20s
 
-  collab:
-    container_name: lexora-collab
-    image: haohaoxue/lexora-collab:latest
-    restart: unless-stopped
-    logging: *default-logging
-    environment:
-      NODE_ENV: production
-      DATABASE_URL: ${DATABASE_URL}
-      REDIS_URL: ${REDIS_URL}
-      API_INTERNAL_URL: http://api:3000
-      APP_INTERNAL_KEY: ${APP_INTERNAL_KEY}
-    depends_on:
-      api:
-        condition: service_healthy
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-    healthcheck:
-      test:
-        [
-          'CMD',
-          'node',
-          '-e',
-          "fetch('http://127.0.0.1:4100/healthz').then(response=>process.exit(response.ok?0:1)).catch(()=>process.exit(1))",
-        ]
-      interval: 10s
-      timeout: 5s
-      retries: 12
-      start_period: 15s
-
   agent:
     container_name: lexora-agent
     image: haohaoxue/lexora-agent:latest
@@ -179,8 +148,6 @@ services:
     logging: *default-logging
     depends_on:
       api:
-        condition: service_healthy
-      collab:
         condition: service_healthy
     ports:
       - '80:80'

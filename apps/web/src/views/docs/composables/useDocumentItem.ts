@@ -5,7 +5,6 @@ import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ElMessage } from '@/utils/element-plus'
 import { isOwnedDocumentCollection } from '../utils/documentTree'
-import { useDocsCollaborationDialog } from './useDocsCollaborationDialog'
 import { useDocsContext } from './useDocsContext'
 import { useDocsPageActions } from './useDocsPageActions'
 import { useDocumentTree } from './useDocumentTree'
@@ -22,7 +21,6 @@ type DocumentTreeItemMenuCommand
     | 'move'
     | 'open-new-tab'
     | 'rename'
-    | 'collaboration'
 
 const DOCUMENT_TREE_ITEM_MENU_COMMANDS: readonly DocumentTreeItemMenuCommand[] = [
   'copy-link',
@@ -31,7 +29,6 @@ const DOCUMENT_TREE_ITEM_MENU_COMMANDS: readonly DocumentTreeItemMenuCommand[] =
   'move',
   'open-new-tab',
   'rename',
-  'collaboration',
 ]
 
 interface DocumentTreeItemMenuItem {
@@ -47,7 +44,6 @@ export function useDocumentItem(options: UseDocumentItemOptions) {
   const { t } = useI18n()
   const tree = useDocumentTree()
   const pageActions = useDocsPageActions()
-  const { openDocumentCollaborationDialog } = useDocsCollaborationDialog()
   const { copy, isSupported: isClipboardSupported } = useClipboard({
     legacy: true,
   })
@@ -58,19 +54,12 @@ export function useDocumentItem(options: UseDocumentItemOptions) {
   const canManageDocument = computed(() =>
     isOwnedDocumentCollection(collectionId.value),
   )
-  const canManageCollaboration = computed(() =>
-    canManageDocument.value,
-  )
   const isActionPending = computed(() =>
     tree.isMutatingTree.value || pageActions.isDocumentOperationRunning.value,
   )
 
   function createChild() {
     void tree.createChildDocument(item.value.id)
-  }
-
-  function manageCollaboration() {
-    openDocumentCollaborationDialog(item.value.id)
   }
 
   function openDocumentInNewTab() {
@@ -117,20 +106,11 @@ export function useDocumentItem(options: UseDocumentItemOptions) {
       icon: 'document-menu-open-new',
     }]
 
-    if (canManageCollaboration.value) {
-      items.push({
-        command: 'collaboration',
-        label: t('docs.treeMenu.collaboration'),
-        icon: 'document-menu-share',
-        divided: true,
-      })
-    }
-
     items.push({
       command: 'copy-link',
       label: t('docs.treeMenu.copyLink'),
       icon: 'link',
-      divided: !canManageCollaboration.value,
+      divided: true,
     })
 
     if (canManageDocument.value) {
@@ -171,7 +151,6 @@ export function useDocumentItem(options: UseDocumentItemOptions) {
     'move': () => canManageDocument.value && moveDocument(),
     'open-new-tab': openDocumentInNewTab,
     'rename': () => canManageDocument.value && renameDocument(),
-    'collaboration': () => canManageCollaboration.value && manageCollaboration(),
   }
 
   function handleMenuCommand(command: unknown) {
@@ -186,7 +165,6 @@ export function useDocumentItem(options: UseDocumentItemOptions) {
 
   return {
     actionsStateClass,
-    canManageCollaboration,
     canManageDocument,
     createChild,
     deleteDocument,

@@ -1,7 +1,6 @@
 import type { AgentDocumentAssistantEditIntent } from '@haohaoxue/lexora-contracts/agent'
 import type {
   TiptapEditorBlockContextRequest,
-  TiptapEditorCollaborationBinding,
   TiptapEditorCommentRequest,
   TiptapEditorContent,
   TiptapEditorSelectionContextRequest,
@@ -32,11 +31,6 @@ export interface DocumentBodyEditorProps {
    */
   documentId?: string | null
   /**
-   * 协作绑定
-   * @description 接入同一个 Y.Doc 的 body field
-   */
-  collaboration?: TiptapEditorCollaborationBinding | null
-  /**
    * 正文
    * @description 正文内容节点数组
    */
@@ -63,7 +57,7 @@ export interface DocumentBodyEditorProps {
   outlineOptions?: DocumentBodyEditorOutlineOptions
   /**
    * AI 候选修改
-   * @description 本地预览状态，不写入正文或协作文档
+   * @description 本地预览状态，不写入正式正文
    */
   aiDraftPreview?: DocumentBodyEditorAiDraftPreview | null
   /**

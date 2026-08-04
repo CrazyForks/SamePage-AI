@@ -1,14 +1,13 @@
 import {
+  TIPTAP_BODY_BLOCK_ID_ALPHABET,
   TIPTAP_BODY_BLOCK_ID_ATTRIBUTE,
   TIPTAP_BODY_BLOCK_ID_NODE_TYPES,
+  TIPTAP_BODY_BLOCK_ID_PATTERN,
   TIPTAP_BODY_BLOCK_ID_PREFIX,
+  TIPTAP_BODY_BLOCK_ID_SUFFIX_LENGTH,
 } from '@haohaoxue/lexora-contracts/tiptap/document-body'
 import { customAlphabet } from 'nanoid'
 import { TIPTAP_NESTED_PARAGRAPH_PARENT_NODE_NAMES } from './blockTaxonomy'
-
-const BLOCK_ID_ALPHABET = '0123456789abcdefghijklmnopqrstuvwxyz'
-const BLOCK_ID_SIZE = 12
-const BLOCK_ID_PATTERN = new RegExp(`^${TIPTAP_BODY_BLOCK_ID_PREFIX}[0-9a-z]{${BLOCK_ID_SIZE}}$`)
 
 export const BODY_BLOCK_ID_ATTRIBUTE = TIPTAP_BODY_BLOCK_ID_ATTRIBUTE
 export const BODY_BLOCK_ID_NODE_TYPES = TIPTAP_BODY_BLOCK_ID_NODE_TYPES
@@ -31,14 +30,14 @@ interface BodyBlockIdParentLike {
 const BODY_BLOCK_ID_NODE_TYPE_SET = new Set<string>(BODY_BLOCK_ID_NODE_TYPES)
 const NESTED_PARAGRAPH_PARENT_NODE_TYPE_SET = new Set<string>(TIPTAP_NESTED_PARAGRAPH_PARENT_NODE_NAMES)
 
-const createBlockIdSuffix = customAlphabet(BLOCK_ID_ALPHABET, BLOCK_ID_SIZE)
+const createBlockIdSuffix = customAlphabet(TIPTAP_BODY_BLOCK_ID_ALPHABET, TIPTAP_BODY_BLOCK_ID_SUFFIX_LENGTH)
 
 export function createBlockId(_nodeType: BodyBlockIdNodeType) {
   return `${TIPTAP_BODY_BLOCK_ID_PREFIX}${createBlockIdSuffix()}`
 }
 
 export function isBlockId(value: unknown): value is string {
-  return typeof value === 'string' && BLOCK_ID_PATTERN.test(value)
+  return typeof value === 'string' && TIPTAP_BODY_BLOCK_ID_PATTERN.test(value)
 }
 
 export function isBodyBlockIdNodeTypeName(value: string): value is BodyBlockIdNodeType {

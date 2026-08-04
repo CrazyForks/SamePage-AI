@@ -1,6 +1,5 @@
 import type { Transaction } from '@tiptap/pm/state'
 import { Extension } from '@tiptap/core'
-import { isChangeOrigin } from '@tiptap/extension-collaboration'
 import { Plugin, PluginKey } from '@tiptap/pm/state'
 
 const SELECTION_VISIBILITY_META = 'lexoraSelectionVisibility'
@@ -40,7 +39,7 @@ function shouldScrollSelectionIntoView(transactions: readonly Transaction[]) {
     return false
   }
 
-  return !transactions.every(transaction => isChangeOrigin(transaction))
+  return true
 }
 
 function shouldAddSelectionVisibilityToHistory(transactions: readonly Transaction[]) {

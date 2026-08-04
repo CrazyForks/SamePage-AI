@@ -26,14 +26,8 @@ export const useDocsSurfaceState = createSharedComposable(() => {
   const tree = useDocumentTree()
   const activeDocument = useActiveDocument()
 
-  const collapsedGroupIds = ref<DocumentTreeCollectionId[]>([
-    DOCUMENT_COLLECTION.COLLABORATION,
-  ])
+  const collapsedGroupIds = ref<DocumentTreeCollectionId[]>([])
   const currentSurface = computed<DocsSurfaceView>(() => {
-    if (routeName.value === 'docs-collaborations') {
-      return 'collaborations'
-    }
-
     if (routeName.value === 'docs-trash') {
       return 'trash'
     }
@@ -157,7 +151,6 @@ function buildVisibleTreeGroups(groups: DocumentTreeGroup[]): DocumentTreeGroup[
 
   return [
     findTreeGroup(groups, DOCUMENT_COLLECTION.PERSONAL) ?? createEmptyTreeGroup(DOCUMENT_COLLECTION.PERSONAL),
-    findTreeGroup(groups, DOCUMENT_COLLECTION.COLLABORATION) ?? createEmptyTreeGroup(DOCUMENT_COLLECTION.COLLABORATION),
   ]
 }
 

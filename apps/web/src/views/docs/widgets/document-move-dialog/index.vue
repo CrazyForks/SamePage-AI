@@ -6,9 +6,7 @@ import type {
   OwnedDocumentCollectionId,
 } from '@haohaoxue/lexora-contracts/document'
 import type { MoveTreeNode, SelectedMoveTarget } from './typing'
-import {
-  DOCUMENT_COLLECTION,
-} from '@haohaoxue/lexora-contracts/document/constants'
+
 import { computed, shallowRef, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { getDocuments } from '@/apis/document'
@@ -31,9 +29,7 @@ let loadRequestId = 0
 
 const target = computed(() => tree.moveDialogTarget.value)
 const isOpen = computed(() => tree.isMoveDialogOpen.value)
-const visibleGroups = computed(() =>
-  targetGroups.value.filter(group => group.id !== DOCUMENT_COLLECTION.COLLABORATION),
-)
+const visibleGroups = computed(() => targetGroups.value)
 const canConfirm = computed(() => Boolean(target.value && selectedTarget.value) && !isMoving.value)
 const selectedTargetLabel = computed(() => selectedTarget.value?.label ?? t('docs.moveDialog.selectTarget'))
 
@@ -166,7 +162,7 @@ function closeDialog() {
 }
 
 function isOwnedCollection(collectionId: DocumentTreeCollectionId): collectionId is OwnedDocumentCollectionId {
-  return collectionId !== DOCUMENT_COLLECTION.COLLABORATION
+  return Boolean(collectionId)
 }
 </script>
 

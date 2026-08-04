@@ -83,10 +83,3 @@ export class UpdateUserPreferencesDto implements UpdateUserPreferencesRequest {
   @IsIn(APPEARANCE_PREFERENCE_VALUES)
   appearance?: AppearancePreference
 }
-
-export class FindUserByCodeQueryDto {
-  @IsString()
-  @MinLength(1)
-  @MaxLength(32)
-  code!: string
-}

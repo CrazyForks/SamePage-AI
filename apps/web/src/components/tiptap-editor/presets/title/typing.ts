@@ -1,5 +1,4 @@
 import type { TiptapJsonContent } from '@haohaoxue/lexora-contracts'
-import type { TiptapEditorCollaborationBinding } from '../../core/typing'
 
 export interface DocumentTitleEditorProps {
   /**
@@ -12,11 +11,6 @@ export interface DocumentTitleEditorProps {
    * @description 新建文档后一次性把光标放到标题上
    */
   autofocus?: boolean
-  /**
-   * 协作绑定
-   * @description 接入同一个 Y.Doc 的 title field
-   */
-  collaboration?: TiptapEditorCollaborationBinding | null
   /**
    * 是否可编辑
    * @description 历史预览时关闭编辑能力

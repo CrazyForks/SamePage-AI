@@ -23,7 +23,7 @@ export const AgentDocumentAssistantSkillInvocationSchema = z.object({
 
 export const AGENT_DOCUMENT_ASSISTANT_SKILL_MANIFEST = {
   title: '文档助手',
-  description: '基于当前文档或选区生成续写、重写等候选修改，由用户确认后再写入协作文档。',
+  description: '基于当前文档或选区生成续写、重写等候选修改，由用户确认后再写入文档。',
   tools: [],
 } as const
 

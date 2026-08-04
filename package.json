@@ -11,7 +11,7 @@
   },
   "scripts": {
     "predev": "pnpm dev:env",
-    "dev": "pnpm -r --parallel --if-present dev",
+    "dev": "pnpm -r --parallel --filter '!@lexora/buddy' --if-present dev",
     "dev:env": "node infrastructure/scripts/sync-dev-env.mjs",
     "dev:infra": "docker compose --env-file infrastructure/.env -f infrastructure/compose.dev.yml up -d",
     "dev:infra:down": "docker compose -f infrastructure/compose.dev.yml down",
@@ -25,8 +25,6 @@
     "predev:agent": "pnpm dev:env",
     "dev:agent": "pnpm --filter @haohaoxue/lexora-agent dev",
     "dev:buddy": "pnpm --filter @lexora/buddy dev",
-    "predev:collab": "pnpm dev:env",
-    "dev:collab": "pnpm --filter @haohaoxue/lexora-collab dev",
     "build": "pnpm -r --if-present build",
     "build:buddy:arch": "RUST_MIN_STACK=16777216 pnpm --filter @lexora/buddy tauri build --ci --bundles deb",
     "buddy:version:check": "node packaging/buddy/release/buddy-version.mjs --check",

@@ -1,7 +1,6 @@
 import { Module } from '@nestjs/common'
 import { ConfigModule } from '@nestjs/config'
 import { bootstrapConfig, cryptoConfig, jwtConfig, oauthConfig } from './auth.config'
-import { collabConfig } from './collab.config'
 import { databaseConfig } from './database.config'
 import { validateEnv } from './env.schema'
 import { loggerConfig } from './logger.config'
@@ -13,7 +12,7 @@ import { storageConfig } from './storage.config'
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
-      load: [serverConfig, loggerConfig, databaseConfig, jwtConfig, oauthConfig, bootstrapConfig, cryptoConfig, storageConfig, collabConfig, redisConfig],
+      load: [serverConfig, loggerConfig, databaseConfig, jwtConfig, oauthConfig, bootstrapConfig, cryptoConfig, storageConfig, redisConfig],
       validate: validateEnv,
     }),
   ],

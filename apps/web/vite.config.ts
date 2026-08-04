@@ -16,27 +16,18 @@ const elementPlusResolver = ElementPlusResolver({
 })
 
 const editorDependencyDedupe = [
-  '@hocuspocus/provider',
   '@tiptap/core',
-  '@tiptap/extension-collaboration',
-  '@tiptap/extension-collaboration-cursor',
   '@tiptap/pm',
   '@tiptap/starter-kit',
   '@tiptap/vue-3',
-  '@tiptap/y-tiptap',
   'prosemirror-model',
   'prosemirror-state',
   'prosemirror-transform',
   'prosemirror-view',
-  'y-protocols',
-  'yjs',
 ]
 
 const editorOptimizedDependencies = [
-  '@hocuspocus/provider',
   '@tiptap/core',
-  '@tiptap/extension-collaboration',
-  '@tiptap/extension-collaboration-cursor',
   '@tiptap/extension-color',
   '@tiptap/extension-highlight',
   '@tiptap/extension-image',
@@ -54,13 +45,10 @@ const editorOptimizedDependencies = [
   '@tiptap/starter-kit',
   '@tiptap/vue-3',
   '@tiptap/vue-3/menus',
-  '@tiptap/y-tiptap',
   'prosemirror-model',
   'prosemirror-state',
   'prosemirror-transform',
   'prosemirror-view',
-  'y-protocols/awareness',
-  'yjs',
   'element-plus/es',
 ]
 
@@ -123,11 +111,6 @@ export default defineConfig(({ mode }) => {
           xfwd: true,
           ws: true,
         },
-        '/collab': {
-          target: 'ws://localhost:4100',
-          xfwd: true,
-          ws: true,
-        },
       },
     },
     build: {
@@ -145,7 +128,7 @@ export default defineConfig(({ mode }) => {
     },
     test: {
       environment: 'jsdom',
-      include: ['./__tests__/**/*.spec.ts'],
+      include: ['./__tests__/**/*.spec.ts', './src/**/__tests__/**/*.spec.ts'],
       maxWorkers: 2,
       server: {
         deps: {

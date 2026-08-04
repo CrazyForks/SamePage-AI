@@ -12,7 +12,6 @@ export type {
   UpdateCurrentUserAvatarResponse,
   UpdateCurrentUserProfileRequest,
   UpdateUserPreferencesRequest,
-  UserCollabIdentity,
   UserOauthBinding,
   UserSettings,
   UserSettingsPreferences,

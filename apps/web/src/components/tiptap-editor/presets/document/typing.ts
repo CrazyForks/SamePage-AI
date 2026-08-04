@@ -1,7 +1,6 @@
 import type { DocumentPageWidthMode, TiptapJsonContent } from '@haohaoxue/lexora-contracts'
 import type {
   TiptapEditorBlockContextRequest,
-  TiptapEditorCollaborationBinding,
   TiptapEditorCommentRequest,
   TiptapEditorSelectionContextRequest,
 } from '../../core/typing'
@@ -31,10 +30,6 @@ export interface DocumentContentSurfaceProps {
   editable?: boolean
   /** 是否应自动聚焦标题 */
   autofocusTitle?: boolean
-  /** 标题协作绑定 */
-  titleCollaboration?: TiptapEditorCollaborationBinding | null
-  /** 正文协作绑定 */
-  bodyCollaboration?: TiptapEditorCollaborationBinding | null
   /** 当前 URL 对应的块 ID */
   activeBlockId?: string | null
   /** 页面宽度模式 */
@@ -45,7 +40,7 @@ export interface DocumentContentSurfaceProps {
   footerMetaItems?: DocumentContentSurfaceFooterMetaItem[]
   /**
    * 正文 AI 候选修改
-   * @description 本地预览，不写入正文或协作文档
+   * @description 本地预览，不写入正式正文
    */
   bodyAiDraftPreview?: DocumentBodyEditorAiDraftPreview | null
   /**

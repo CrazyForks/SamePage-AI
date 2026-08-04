@@ -6,23 +6,20 @@ import type {
   DocumentHistory,
   DocumentVersionSnapshot,
   DocumentVersionSnapshotSource,
-  MaterializeDocumentYdocCurrentProjectionRequest,
-  MaterializeDocumentYdocCurrentProjectionResponse,
-  PatchDocumentTitleRequest,
   RestoreDocumentVersionSnapshotRequest,
   RestoreDocumentVersionSnapshotResponse,
+  SaveDocumentContentRequest,
+  SaveDocumentContentResponse,
   TiptapJsonContent,
 } from '@haohaoxue/lexora-contracts'
-import {
-  COLLAB_PERMISSION_INVALIDATION_REASON,
-  DOCUMENT_VERSION_SNAPSHOT_SOURCE,
-} from '@haohaoxue/lexora-contracts'
+import { DOCUMENT_VERSION_SNAPSHOT_SOURCE } from '@haohaoxue/lexora-contracts'
 import {
   collectDocumentAssetIds,
   createDocumentTitleContent,
   getDocumentTitlePlainText,
   hasUnresolvedDocumentAssets,
   isSameDocumentVersionSnapshotContent,
+  isValidTiptapDocumentBodyContent,
   stripDocumentAssetRuntimeAttributes,
   summarizeDocumentContent,
 } from '@haohaoxue/lexora-shared'
@@ -34,11 +31,9 @@ import {
 } from '@nestjs/common'
 import { Prisma } from '@prisma/client'
 import { PrismaService } from '../../../database/prisma.service'
-import { CollabPermissionInvalidationPublisherService } from '../../../infrastructure/publisher/collab-permission-invalidation-publisher.service'
 import { auditUserSummarySelect, toAuditUserSummary } from '../../users/audit-user-summary'
 import { DocumentAssetsService } from '../asset/asset.service'
 import { DocumentAccessService } from '../core/access.service'
-import { DocumentYdocsService } from './ydocs.service'
 
 const AUTO_VERSION_SNAPSHOT_INTERVAL_MS = 5 * 60 * 1000
 
@@ -46,10 +41,7 @@ const documentCurrentProjectionSelect = {
   id: true,
   documentId: true,
   projectionRevision: true,
-  runtimeEpoch: true,
-  projectedUpdateSeq: true,
-  checkpointSeq: true,
-  checkpointUpdateSeq: true,
+  idempotencyKey: true,
   schemaVersion: true,
   title: true,
   body: true,
@@ -63,10 +55,6 @@ const documentVersionSnapshotSelect = {
   version: true,
   basedOnProjectionId: true,
   basedOnProjectionRevision: true,
-  runtimeEpoch: true,
-  projectedUpdateSeq: true,
-  checkpointSeq: true,
-  checkpointUpdateSeq: true,
   schemaVersion: true,
   title: true,
   body: true,
@@ -79,6 +67,12 @@ const documentVersionSnapshotSelect = {
   createdByUser: {
     select: auditUserSummarySelect,
   },
+} satisfies Prisma.DocumentVersionSnapshotSelect
+
+const documentVersionSnapshotMetadataSelect = {
+  id: true,
+  source: true,
+  createdAt: true,
 } satisfies Prisma.DocumentVersionSnapshotSelect
 
 const documentCurrentSelect = {
@@ -131,8 +125,6 @@ export class DocumentContentService {
     private readonly prisma: PrismaService,
     private readonly documentAssetsService: DocumentAssetsService,
     private readonly documentAccessService: DocumentAccessService,
-    private readonly documentYdocsService?: DocumentYdocsService,
-    private readonly collabPermissionInvalidationPublisher?: CollabPermissionInvalidationPublisherService,
   ) {}
 
   async getDocumentCurrent(
@@ -144,19 +136,28 @@ export class DocumentContentService {
     return toDocumentCurrent(document, accessibleDocument.access)
   }
 
-  async patchDocumentTitle(
+  async saveDocumentContent(
     userId: string,
     id: string,
-    payload: PatchDocumentTitleRequest,
-  ): Promise<DocumentCurrent> {
+    payload: SaveDocumentContentRequest,
+  ): Promise<SaveDocumentContentResponse> {
     const accessibleDocument = await this.documentAccessService.assertCanEditDocument(userId, id)
+    const body = stripDocumentAssetRuntimeAttributes(payload.body)
+    const title = createDocumentTitleContent(getDocumentTitlePlainText(payload.title))
 
-    if (!this.documentYdocsService) {
-      throw new ConflictException('协作运行时持久化服务未初始化')
+    if (!isValidTiptapDocumentBodyContent(body)) {
+      throw new BadRequestException('正文包含不支持的内容结构')
     }
 
-    const nextTitle = createDocumentTitleContent(payload.title)
+    this.assertPersistableDocumentAssets(body)
+    await this.documentAssetsService.assertAssetsBelongToDocument({
+      documentId: id,
+      assetIds: collectDocumentAssetIds(body),
+    })
+
     const result = await this.prisma.$transaction(async (tx) => {
+      await this.lockDocumentForWrite(tx, id)
+
       const currentDocument = await tx.document.findUnique({
         where: { id },
         select: documentCurrentSelect,
@@ -166,25 +167,42 @@ export class DocumentContentService {
         throw new NotFoundException(`Document "${id}" current projection not found`)
       }
 
-      const resetResult = await this.documentYdocsService!.resetDocumentYdocRuntimeWithTitle(tx, {
-        documentId: id,
-        title: nextTitle,
-        bodyWhenYdocMissing: asTiptapJsonContent(currentDocument.currentProjection.body),
+      const existingProjection = await tx.documentCurrentProjection.findFirst({
+        where: {
+          documentId: id,
+          idempotencyKey: payload.idempotencyKey,
+        },
+        select: documentCurrentProjectionSelect,
       })
-      const checkpointMetadata = resetResult.metadata
-      const body = stripDocumentAssetRuntimeAttributes(resetResult.projection.body)
-      const titleText = getDocumentTitlePlainText(resetResult.projection.title)
+
+      if (existingProjection) {
+        if (currentDocument.currentProjectionId !== existingProjection.id) {
+          throw new ConflictException('文档当前投影已变化，请刷新后重试')
+        }
+
+        return currentDocument
+      }
+
+      if (currentDocument.currentProjectionRevision !== payload.baseProjectionRevision) {
+        throw new ConflictException('文档当前投影已变化，请刷新后重试')
+      }
+
+      if (isProjectionContentSame(currentDocument.currentProjection, {
+        schemaVersion: payload.schemaVersion,
+        title,
+        body,
+      })) {
+        return currentDocument
+      }
+
       const nextProjectionRevision = currentDocument.currentProjectionRevision + 1
       const projection = await tx.documentCurrentProjection.create({
         data: {
           documentId: id,
           projectionRevision: nextProjectionRevision,
-          runtimeEpoch: checkpointMetadata.runtimeEpoch,
-          projectedUpdateSeq: 0,
-          checkpointSeq: checkpointMetadata.checkpointSeq,
-          checkpointUpdateSeq: 0,
-          schemaVersion: currentDocument.currentProjection.schemaVersion,
-          title: toPrismaJsonValue(resetResult.projection.title),
+          idempotencyKey: payload.idempotencyKey,
+          schemaVersion: payload.schemaVersion,
+          title: toPrismaJsonValue(title),
           body: toPrismaJsonValue(body),
         },
         select: documentCurrentProjectionSelect,
@@ -194,108 +212,37 @@ export class DocumentContentService {
         data: {
           currentProjectionId: projection.id,
           currentProjectionRevision: nextProjectionRevision,
+          title: getDocumentTitlePlainText(title),
           summary: summarizeDocumentContent(body, 120, ''),
-          title: titleText,
         },
         select: documentCurrentSelect,
       })
-
-      await this.documentYdocsService!.recordDocumentYdocCurrentProjection(tx, {
-        documentId: id,
-        runtimeEpoch: checkpointMetadata.runtimeEpoch,
-        checkpointSeq: checkpointMetadata.checkpointSeq,
-        checkpointUpdateSeq: 0,
-        lastProjectedProjectionId: projection.id,
-        lastProjectedProjectionRevision: nextProjectionRevision,
-      })
-
-      return {
-        ...document,
-        currentProjection: projection,
-      }
-    })
-    await this.collabPermissionInvalidationPublisher?.publishPermissionInvalidations([{
-      reason: COLLAB_PERMISSION_INVALIDATION_REASON.RUNTIME_EPOCH_EXPIRED,
-      documentId: id,
-    }])
-
-    return toDocumentCurrent(result, accessibleDocument.access)
-  }
-
-  async materializeDocumentYdocCurrentProjection(
-    id: string,
-    payload: MaterializeDocumentYdocCurrentProjectionRequest,
-  ): Promise<MaterializeDocumentYdocCurrentProjectionResponse> {
-    if (!this.documentYdocsService) {
-      throw new ConflictException('协作运行时持久化服务未初始化')
-    }
-
-    const documentYdocsService = this.documentYdocsService
-    const persistableBody = stripDocumentAssetRuntimeAttributes(payload.body)
-    this.assertPersistableDocumentAssets(persistableBody)
-    await this.documentAssetsService.assertAssetsBelongToDocument({
-      documentId: id,
-      assetIds: collectDocumentAssetIds(persistableBody),
-    })
-
-    return await this.prisma.$transaction(async (tx) => {
-      const currentDocument = await tx.document.findUnique({
-        where: { id },
-        select: {
-          id: true,
-          currentProjectionRevision: true,
-        },
-      })
-
-      if (!currentDocument) {
-        throw new NotFoundException(`Document "${id}" not found`)
-      }
-
-      const nextProjectionRevision = currentDocument.currentProjectionRevision + 1
-      const projection = await tx.documentCurrentProjection.create({
-        data: {
-          documentId: id,
-          projectionRevision: nextProjectionRevision,
-          runtimeEpoch: payload.runtimeEpoch,
-          projectedUpdateSeq: payload.checkpointUpdateSeq,
-          checkpointSeq: payload.checkpointSeq,
-          checkpointUpdateSeq: payload.checkpointUpdateSeq,
-          schemaVersion: payload.schemaVersion,
-          title: toPrismaJsonValue(payload.title),
-          body: toPrismaJsonValue(persistableBody),
-        },
-        select: documentCurrentProjectionSelect,
-      })
-
-      await tx.document.update({
-        where: { id },
-        data: {
-          currentProjectionId: projection.id,
-          currentProjectionRevision: nextProjectionRevision,
-          title: getDocumentTitlePlainText(payload.title),
-          summary: summarizeDocumentContent(persistableBody, 120, ''),
-        },
-      })
-
-      await documentYdocsService.recordDocumentYdocCurrentProjection(tx, {
-        documentId: id,
-        runtimeEpoch: payload.runtimeEpoch,
-        checkpointSeq: payload.checkpointSeq,
-        checkpointUpdateSeq: payload.checkpointUpdateSeq,
-        lastProjectedProjectionId: projection.id,
-        lastProjectedProjectionRevision: nextProjectionRevision,
-      })
-
-      await this.maybeCreateAutoVersionSnapshotFromProjection(tx, {
+      const autoSnapshot = await this.maybeCreateAutoVersionSnapshotFromProjection(tx, {
         documentId: id,
         projection,
       })
+      await this.pruneSupersededCurrentProjection(tx, currentDocument.currentProjection.id)
 
-      return {
-        projection: toDocumentCurrentProjection(projection),
-        currentProjectionRevision: nextProjectionRevision,
+      if (!autoSnapshot) {
+        return {
+          ...document,
+          currentProjection: projection,
+        }
       }
+
+      const documentAfterSnapshot = await tx.document.findUnique({
+        where: { id },
+        select: documentCurrentSelect,
+      })
+
+      if (!documentAfterSnapshot?.currentProjection) {
+        throw new NotFoundException(`Document "${id}" current projection not found`)
+      }
+
+      return documentAfterSnapshot
     })
+
+    return toDocumentCurrent(result, accessibleDocument.access)
   }
 
   async getDocumentVersionSnapshots(userId: string, id: string): Promise<DocumentVersionSnapshot[]> {
@@ -321,7 +268,6 @@ export class DocumentContentService {
     return {
       current: {
         projectionRevision: document.currentProjectionRevision,
-        runtimeEpoch: currentProjection.runtimeEpoch,
         updatedAt: currentProjection.updatedAt.toISOString(),
         matchedVersionSnapshotId: matchedVersionSnapshot?.id ?? null,
         hasUnversionedChanges: !matchedVersionSnapshot,
@@ -338,6 +284,8 @@ export class DocumentContentService {
     await this.documentAccessService.assertCanEditDocument(userId, id)
 
     const snapshot = await this.prisma.$transaction(async (tx) => {
+      await this.lockDocumentForWrite(tx, id)
+
       const currentDocument = await tx.document.findUnique({
         where: { id },
         select: {
@@ -379,11 +327,9 @@ export class DocumentContentService {
   ): Promise<RestoreDocumentVersionSnapshotResponse> {
     const accessibleDocument = await this.documentAccessService.assertCanEditDocument(userId, id)
 
-    if (!this.documentYdocsService) {
-      throw new ConflictException('协作运行时持久化服务未初始化')
-    }
-
     const result = await this.prisma.$transaction(async (tx) => {
+      await this.lockDocumentForWrite(tx, id)
+
       const [currentDocument, targetSnapshot] = await Promise.all([
         tx.document.findUnique({
           where: { id },
@@ -412,20 +358,11 @@ export class DocumentContentService {
         throw new ConflictException('文档当前投影已变化，请刷新后重试')
       }
 
-      const checkpointMetadata = await this.documentYdocsService!.resetDocumentYdocRuntimeFromVersionSnapshot(tx, {
-        documentId: id,
-        title: asTiptapJsonContent(targetSnapshot.title),
-        body: asTiptapJsonContent(targetSnapshot.body),
-      })
       const nextProjectionRevision = currentDocument.currentProjectionRevision + 1
       const projection = await tx.documentCurrentProjection.create({
         data: {
           documentId: id,
           projectionRevision: nextProjectionRevision,
-          runtimeEpoch: checkpointMetadata.runtimeEpoch,
-          projectedUpdateSeq: 0,
-          checkpointSeq: checkpointMetadata.checkpointSeq,
-          checkpointUpdateSeq: 0,
           schemaVersion: targetSnapshot.schemaVersion,
           title: toPrismaJsonValue(targetSnapshot.title),
           body: toPrismaJsonValue(targetSnapshot.body),
@@ -440,7 +377,7 @@ export class DocumentContentService {
         createdBy: userId,
       })
 
-      await tx.document.update({
+      const document = await tx.document.update({
         where: { id },
         data: {
           currentProjectionId: projection.id,
@@ -449,35 +386,15 @@ export class DocumentContentService {
           title: getDocumentTitlePlainText(asTiptapJsonContent(targetSnapshot.title)),
           summary: summarizeDocumentContent(asTiptapJsonContent(targetSnapshot.body), 120, ''),
         },
+        select: documentCurrentSelect,
       })
-
-      await this.documentYdocsService!.recordDocumentYdocCurrentProjection(tx, {
-        documentId: id,
-        runtimeEpoch: checkpointMetadata.runtimeEpoch,
-        checkpointSeq: checkpointMetadata.checkpointSeq,
-        checkpointUpdateSeq: 0,
-        lastProjectedProjectionId: projection.id,
-        lastProjectedProjectionRevision: nextProjectionRevision,
-      })
+      await this.pruneSupersededCurrentProjection(tx, currentDocument.currentProjection.id)
 
       return {
-        current: toDocumentCurrent({
-          ...currentDocument,
-          title: getDocumentTitlePlainText(asTiptapJsonContent(targetSnapshot.title)),
-          summary: summarizeDocumentContent(asTiptapJsonContent(targetSnapshot.body), 120, ''),
-          currentProjectionId: projection.id,
-          currentProjectionRevision: nextProjectionRevision,
-          latestVersionSnapshotId: restoreSnapshot.id,
-          currentProjection: projection,
-        }, accessibleDocument.access),
+        current: toDocumentCurrent(document, accessibleDocument.access),
         snapshot: toDocumentVersionSnapshot(restoreSnapshot),
       }
     })
-
-    await this.collabPermissionInvalidationPublisher?.publishPermissionInvalidations([{
-      reason: COLLAB_PERMISSION_INVALIDATION_REASON.RUNTIME_EPOCH_EXPIRED,
-      documentId: id,
-    }])
 
     return result
   }
@@ -521,12 +438,8 @@ export class DocumentContentService {
       orderBy: {
         version: 'desc',
       },
-      select: documentVersionSnapshotSelect,
+      select: documentVersionSnapshotMetadataSelect,
     })
-
-    if (latestSnapshot && isVersionSnapshotContentSameAsProjection(latestSnapshot, input.projection)) {
-      return null
-    }
 
     const shouldCreateInitialAutoSnapshot = latestSnapshot?.source === DOCUMENT_VERSION_SNAPSHOT_SOURCE.INITIAL
     const shouldCreateScheduledAutoSnapshot = !latestSnapshot
@@ -534,6 +447,21 @@ export class DocumentContentService {
 
     if (!shouldCreateInitialAutoSnapshot && !shouldCreateScheduledAutoSnapshot) {
       return null
+    }
+
+    if (latestSnapshot) {
+      const latestSnapshotContent = await tx.documentVersionSnapshot.findUnique({
+        where: { id: latestSnapshot.id },
+        select: documentVersionSnapshotSelect,
+      })
+
+      if (!latestSnapshotContent) {
+        throw new NotFoundException(`Version snapshot "${latestSnapshot.id}" not found`)
+      }
+
+      if (isVersionSnapshotContentSameAsProjection(latestSnapshotContent, input.projection)) {
+        return null
+      }
     }
 
     return await this.createVersionSnapshotFromProjection(tx, {
@@ -586,10 +514,6 @@ export class DocumentContentService {
         version: nextVersion,
         basedOnProjectionId: input.projection.id,
         basedOnProjectionRevision: input.projection.projectionRevision,
-        runtimeEpoch: input.projection.runtimeEpoch,
-        projectedUpdateSeq: input.projection.projectedUpdateSeq,
-        checkpointSeq: input.projection.checkpointSeq,
-        checkpointUpdateSeq: input.projection.checkpointUpdateSeq,
         schemaVersion: input.projection.schemaVersion,
         title: toPrismaJsonValue(input.projection.title),
         body: toPrismaJsonValue(input.projection.body),
@@ -614,6 +538,22 @@ export class DocumentContentService {
   }
 
   private async lockVersionSnapshotSequence(tx: Prisma.TransactionClient, documentId: string): Promise<void> {
+    await this.lockDocumentForWrite(tx, documentId)
+  }
+
+  private async pruneSupersededCurrentProjection(
+    tx: Prisma.TransactionClient,
+    projectionId: string,
+  ): Promise<void> {
+    await tx.documentCurrentProjection.deleteMany({
+      where: {
+        id: projectionId,
+        currentForDocument: null,
+      },
+    })
+  }
+
+  private async lockDocumentForWrite(tx: Prisma.TransactionClient, documentId: string): Promise<void> {
     const rows = await tx.$queryRaw<{ id: string }[]>(Prisma.sql`
       SELECT "id"
       FROM "Document"
@@ -697,10 +637,6 @@ function toDocumentCurrentProjection(projection: PersistedDocumentCurrentProject
     id: projection.id,
     documentId: projection.documentId,
     projectionRevision: projection.projectionRevision,
-    runtimeEpoch: projection.runtimeEpoch,
-    projectedUpdateSeq: projection.projectedUpdateSeq,
-    checkpointSeq: projection.checkpointSeq,
-    checkpointUpdateSeq: projection.checkpointUpdateSeq,
     schemaVersion: projection.schemaVersion as DocumentCurrentProjection['schemaVersion'],
     title: asTiptapJsonContent(projection.title),
     body: asTiptapJsonContent(projection.body),
@@ -716,10 +652,6 @@ function toDocumentVersionSnapshot(snapshot: PersistedDocumentVersionSnapshot): 
     version: snapshot.version,
     basedOnProjectionId: snapshot.basedOnProjectionId,
     basedOnProjectionRevision: snapshot.basedOnProjectionRevision,
-    runtimeEpoch: snapshot.runtimeEpoch,
-    projectedUpdateSeq: snapshot.projectedUpdateSeq,
-    checkpointSeq: snapshot.checkpointSeq,
-    checkpointUpdateSeq: snapshot.checkpointUpdateSeq,
     schemaVersion: snapshot.schemaVersion as DocumentVersionSnapshot['schemaVersion'],
     title: asTiptapJsonContent(snapshot.title),
     body: asTiptapJsonContent(snapshot.body),
@@ -748,6 +680,20 @@ function isVersionSnapshotContentSameAsProjection(
       title: asTiptapJsonContent(projection.title),
       body: asTiptapJsonContent(projection.body),
     },
+  )
+}
+
+function isProjectionContentSame(
+  projection: PersistedDocumentCurrentProjection,
+  content: Pick<SaveDocumentContentRequest, 'schemaVersion' | 'title' | 'body'>,
+): boolean {
+  return isSameDocumentVersionSnapshotContent(
+    {
+      schemaVersion: projection.schemaVersion as DocumentVersionSnapshot['schemaVersion'],
+      title: asTiptapJsonContent(projection.title),
+      body: asTiptapJsonContent(projection.body),
+    },
+    content,
   )
 }
 

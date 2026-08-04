@@ -114,7 +114,7 @@ export function useUserProfileSection(options: {
 
     try {
       await copyUserCode(options.props.userCode)
-      ElMessage.success(t('settings.user.profile.collaborationCodeCopied'))
+      ElMessage.success(t('settings.user.profile.accountCodeCopied'))
     }
     catch {
       ElMessage.error(t('settings.user.profile.copyFailed'))

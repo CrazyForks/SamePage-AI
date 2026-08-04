@@ -7,12 +7,13 @@ import type { ComputedRef, ShallowRef } from 'vue'
 import type { DocumentDeleteAction } from '../typing'
 import type { DocumentDeletePlan } from '../utils/documentTree'
 import type { NavigateToDocumentOptions } from './useDocsContext'
-import { getDocumentTitlePlainText } from '@haohaoxue/lexora-shared/document'
+import { createDocumentTitleContent, getDocumentTitlePlainText } from '@haohaoxue/lexora-shared/document'
 import { computed, shallowRef } from 'vue'
 import {
   deleteDocument as deleteDocumentRequest,
-  patchDocumentTitle as patchDocumentTitleRequest,
+  getDocumentCurrent as getDocumentCurrentRequest,
   permanentlyDeleteDocument as permanentlyDeleteDocumentRequest,
+  saveDocumentContent as saveDocumentContentRequest,
 } from '@/apis/document'
 import { translate } from '@/i18n'
 import { ElMessage } from '@/utils/element-plus'
@@ -24,6 +25,7 @@ import {
 
 interface UseDocumentTreeDialogsOptions {
   activeDocumentId: ComputedRef<string | null>
+  confirmNavigation: () => Promise<boolean>
   loadTree: () => Promise<void>
   navigateToDocument: (documentId: string | null, options?: NavigateToDocumentOptions) => Promise<boolean>
   patchDocumentItem: (documentId: string, input: Partial<DocumentItem>) => void
@@ -146,11 +148,20 @@ export function useDocumentTreeDialogs(options: UseDocumentTreeDialogsOptions) {
       return null
     }
 
+    if (target.documentId === options.activeDocumentId.value) {
+      return null
+    }
+
     isRenaming.value = true
 
     try {
-      const current = await patchDocumentTitleRequest(target.documentId, {
-        title: normalizedTitle,
+      const currentDocument = await getDocumentCurrentRequest(target.documentId)
+      const current = await saveDocumentContentRequest(target.documentId, {
+        baseProjectionRevision: currentDocument.currentProjection.projectionRevision,
+        idempotencyKey: crypto.randomUUID(),
+        schemaVersion: currentDocument.currentProjection.schemaVersion,
+        title: createDocumentTitleContent(normalizedTitle),
+        body: currentDocument.currentProjection.body,
       })
 
       options.patchDocumentItem(target.documentId, {
@@ -177,6 +188,14 @@ export function useDocumentTreeDialogs(options: UseDocumentTreeDialogsOptions) {
     deleteActionKind.value = action
 
     try {
+      if (
+        options.activeDocumentId.value
+        && target.affectedDocumentIds.has(options.activeDocumentId.value)
+        && !await options.confirmNavigation()
+      ) {
+        return
+      }
+
       await (action === 'trash'
         ? deleteDocumentRequest(target.documentId)
         : permanentlyDeleteDocumentRequest(target.documentId))

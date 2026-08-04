@@ -4,18 +4,15 @@ import {
   createPageDataSchema,
   RequestPageParamsSchema,
 } from './common'
-import { DocumentCollaborationPermissionSchema, DocumentCollaborationScopeSchema, DocumentCollaborationUserInviteStatusSchema } from './document/collaboration'
 import { AuditUserSummarySchema } from './identity'
 import { TiptapJsonContentPayloadSchema } from './tiptap/core'
 
 export const NOTIFICATION_SOURCE_KIND = {
   PLATFORM: 'PLATFORM',
-  DOCUMENT_COLLABORATION_USER_INVITE: 'DOCUMENT_COLLABORATION_USER_INVITE',
 } as const
 
 export const NOTIFICATION_SOURCE_KIND_VALUES = [
   NOTIFICATION_SOURCE_KIND.PLATFORM,
-  NOTIFICATION_SOURCE_KIND.DOCUMENT_COLLABORATION_USER_INVITE,
 ] as const
 
 export const NOTIFICATION_LIST_FILTER = {
@@ -60,19 +57,6 @@ export const NotificationListFilterSchema = z.enum(NOTIFICATION_LIST_FILTER_VALU
 export const PlatformNotificationStatusSchema = z.enum(PLATFORM_NOTIFICATION_STATUS_VALUES)
 export const PlatformNotificationAssetStatusSchema = z.enum(PLATFORM_NOTIFICATION_ASSET_STATUS_VALUES)
 
-export const DocumentCollaborationUserInviteNotificationSchema = z.object({
-  id: z.string(),
-  rootDocumentId: z.string(),
-  resolverCode: z.string(),
-  documentTitle: z.string(),
-  inviter: AuditUserSummarySchema.nullable(),
-  permission: DocumentCollaborationPermissionSchema,
-  scope: DocumentCollaborationScopeSchema,
-  status: DocumentCollaborationUserInviteStatusSchema,
-  createdAt: z.string(),
-  updatedAt: z.string(),
-}).strict()
-
 export const NotificationSenderSchema = z.object({
   displayName: z.string().trim().min(1),
   avatarUrl: z.string().trim().min(1).nullable(),
@@ -95,15 +79,7 @@ export const PlatformNotificationItemSchema = NotificationItemBaseSchema.extend(
   kind: z.literal(NOTIFICATION_SOURCE_KIND.PLATFORM),
 }).strict()
 
-export const DocumentCollaborationUserInviteNotificationItemSchema = NotificationItemBaseSchema.extend({
-  kind: z.literal(NOTIFICATION_SOURCE_KIND.DOCUMENT_COLLABORATION_USER_INVITE),
-  documentInvite: DocumentCollaborationUserInviteNotificationSchema,
-}).strict()
-
-export const NotificationItemSchema = z.discriminatedUnion('kind', [
-  PlatformNotificationItemSchema,
-  DocumentCollaborationUserInviteNotificationItemSchema,
-])
+export const NotificationItemSchema = PlatformNotificationItemSchema
 
 export const NotificationListQuerySchema = z.object({
   filter: NotificationListFilterSchema.default(NOTIFICATION_LIST_FILTER.ALL),
@@ -124,8 +100,6 @@ export const NotificationMarkAllReadResponseSchema = z.object({
 
 export const NotificationSummarySchema = z.object({
   unreadCount: CountSchema,
-  pendingDocumentCollaborationUserInviteCount: z.number().int().min(0),
-  pendingDocumentCollaborationUserInvites: z.array(DocumentCollaborationUserInviteNotificationSchema),
 }).strict()
 
 export const PlatformNotificationSchema = z.object({
@@ -192,12 +166,10 @@ export type PlatformNotificationStatus = z.infer<typeof PlatformNotificationStat
 export type NotificationSender = z.infer<typeof NotificationSenderSchema>
 export type NotificationItem = z.infer<typeof NotificationItemSchema>
 export type PlatformNotificationItem = z.infer<typeof PlatformNotificationItemSchema>
-export type DocumentCollaborationUserInviteNotificationItem = z.infer<typeof DocumentCollaborationUserInviteNotificationItemSchema>
 export type NotificationListQuery = z.infer<typeof NotificationListQuerySchema>
 export type NotificationListResponse = z.infer<typeof NotificationListResponseSchema>
 export type NotificationMarkAllReadResponse = z.infer<typeof NotificationMarkAllReadResponseSchema>
 export type NotificationSummary = z.infer<typeof NotificationSummarySchema>
-export type DocumentCollaborationUserInviteNotification = z.infer<typeof DocumentCollaborationUserInviteNotificationSchema>
 export type PlatformNotification = z.infer<typeof PlatformNotificationSchema>
 export type PlatformNotificationAssetStatus = z.infer<typeof PlatformNotificationAssetStatusSchema>
 export type PlatformNotificationAsset = z.infer<typeof PlatformNotificationAssetSchema>

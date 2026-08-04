@@ -38,6 +38,7 @@ export const useDocumentTree = createSharedComposable(() => {
   const isBatchDeleting = shallowRef(false)
   const dialogs = useDocumentTreeDialogs({
     activeDocumentId,
+    confirmNavigation,
     loadTree: treeData.loadTree,
     navigateToDocument,
     patchDocumentItem: treeData.patchDocumentItem,
@@ -91,6 +92,17 @@ export const useDocumentTree = createSharedComposable(() => {
     isBatchDeleting.value = true
 
     try {
+      if (
+        activeDocumentId.value
+        && target.affectedDocumentIds.has(activeDocumentId.value)
+        && !await confirmNavigation()
+      ) {
+        return {
+          deletedDocumentIds: [],
+          nextDocumentId: activeDocumentId.value,
+        }
+      }
+
       const response = await batchDeleteDocumentsRequest({
         workspaceId,
         documentIds: target.rootDocumentIds,

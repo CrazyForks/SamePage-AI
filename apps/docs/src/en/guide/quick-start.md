@@ -18,12 +18,8 @@ Open `Chat` from the left navigation. You can create a session, choose a model, 
 
 ## 4. Create a Document
 
-Open `Documents` and create a page. Document pages are rich text documents designed for notes, specs, guides, and collaborative writing.
+Open `Documents` and create a page. Document pages are rich text documents designed for notes, specs, guides, and knowledge. Changes are autosaved, and pending edits are flushed before switching documents.
 
-## 5. Invite Collaborators
+## 5. Publish a Public Page
 
-Use the document collaboration entry to invite a user by user code or create a collaboration link. Permissions can be read-only or editable, and scope can cover only the current page or its descendants.
-
-## 6. Publish a Public Page
-
-Use publication settings when a document needs to be visible to outside visitors. Lexora supports single-page publishing and site publishing. Public pages are read-only and do not enter collaborative editing.
+Use publication settings when a document needs to be visible to outside visitors. Lexora supports single-page and site publishing. Public pages are always read-only.

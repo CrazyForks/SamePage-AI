@@ -11,9 +11,7 @@ const props = defineProps<DocumentTitleEditorProps>()
 const emits = defineEmits<DocumentTitleEditorEmits>()
 
 const titleEditorContent = computed(() => toTiptapDocumentTitleEditorContent(props.title))
-const titleEditorExtensions = createTitleExtensions({
-  collaboration: props.collaboration,
-})
+const titleEditorExtensions = createTitleExtensions()
 const handleTitleEditorKeyDown: TiptapEditorHandleKeyDown = (_, event) => event.key === 'Enter'
 const titleEditor = shallowRef<Editor | null>(null)
 const hasAppliedAutofocus = shallowRef(false)
@@ -67,7 +65,6 @@ watch(
   <TiptapEditor
     class="document-title-editor"
     :content="titleEditorContent"
-    :content-source="props.collaboration ? 'collaboration' : 'props'"
     :initial-extensions="titleEditorExtensions"
     :editable="props.editable"
     :handle-key-down="handleTitleEditorKeyDown"

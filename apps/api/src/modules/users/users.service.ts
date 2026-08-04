@@ -3,7 +3,6 @@ import type {
   PermissionCode,
   SessionUser,
   UpdateUserPreferencesRequest,
-  UserCollabIdentity,
   UserSettings,
 } from '@haohaoxue/lexora-contracts'
 import type { AuthUserContext } from '../auth/auth.interface'
@@ -19,13 +18,11 @@ import { resolveAuthMethods } from '../auth/auth-methods.utils'
 import { RbacService } from '../rbac/rbac.service'
 import { UserAvatarsService } from './user-avatars.service'
 import {
-  isExactUserCodeQuery,
   mapAppearancePreference,
   mapAppearancePreferenceToDb,
   mapLanguagePreference,
   mapLanguagePreferenceToDb,
   normalizeAccountDeletionConfirmation,
-  normalizeUserCodeQuery,
 } from './users.utils'
 
 @Injectable()
@@ -141,31 +138,6 @@ export class UsersService {
   async getCurrentUserPermissions(userId: string): Promise<PermissionCode[]> {
     const context = await this.rbacService.getUserRoleAndPermissions(userId)
     return context.permissions
-  }
-
-  async findUserByUserCode(userCode: string): Promise<UserCollabIdentity> {
-    const normalizedUserCode = normalizeUserCodeQuery(userCode)
-
-    if (!isExactUserCodeQuery(normalizedUserCode)) {
-      throw new NotFoundException('未找到用户')
-    }
-
-    const user = await this.prisma.user.findUnique({
-      where: { userCode: normalizedUserCode },
-      select: {
-        id: true,
-        email: true,
-        displayName: true,
-        avatarUrl: true,
-        userCode: true,
-      },
-    })
-
-    if (!user) {
-      throw new NotFoundException('未找到用户')
-    }
-
-    return user
   }
 
   async updateCurrentUserProfile(authUser: AuthUserContext, displayName: string): Promise<SessionUser> {

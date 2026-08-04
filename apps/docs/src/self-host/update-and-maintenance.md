@@ -8,10 +8,17 @@
 
 1. 备份 PostgreSQL 数据。
 2. 备份对象存储数据。
-3. 拉取新镜像。
-4. 运行 compose。
-5. 等待 `migrate` 完成。
-6. 检查 `api`、`collab`、`agent`、`web` 健康状态。
+3. 停止当前 `web`、`agent`、`api` 应用容器。
+4. 拉取新镜像。
+5. 使用 `--remove-orphans` 运行 compose。
+6. 等待 `migrate` 完成。
+7. 检查 `api`、`agent`、`web` 健康状态。
+
+```bash
+docker compose -f infrastructure/compose.prod.yml --env-file infrastructure/.env stop web agent api
+docker compose -f infrastructure/compose.prod.yml --env-file infrastructure/.env pull
+docker compose -f infrastructure/compose.prod.yml --env-file infrastructure/.env up -d --remove-orphans
+```
 
 ## 数据库迁移
 
@@ -35,7 +42,6 @@
 
 ```bash
 docker compose -f infrastructure/compose.prod.yml logs api
-docker compose -f infrastructure/compose.prod.yml logs collab
 docker compose -f infrastructure/compose.prod.yml logs agent
 docker compose -f infrastructure/compose.prod.yml logs web
 ```

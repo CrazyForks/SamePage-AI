@@ -6,7 +6,7 @@ export const UI_PERSIST_KEY = STORAGE_KEY.ui
 
 const DOCUMENT_TREE_FALLBACK_KEY = '__workspace_pending__'
 
-export type DocsControlCenterRouteName = 'docs-collaborations' | 'docs-publications' | 'docs-trash'
+export type DocsControlCenterRouteName = 'docs-publications' | 'docs-trash'
 
 function resolveDocumentTreeStateKey(workspaceId: string | null) {
   return workspaceId?.trim() || DOCUMENT_TREE_FALLBACK_KEY
@@ -18,7 +18,7 @@ export const useUiStore = defineStore('ui', () => {
   const chatSessionSidebarPinned = shallowRef<boolean | null>(null)
   const documentLibrarySidebarCollapsed = shallowRef(false)
   const docsChatPanelPreferredWidthPx = shallowRef<number | null>(null)
-  const lastDocsControlCenterRouteName = shallowRef<DocsControlCenterRouteName>('docs-collaborations')
+  const lastDocsControlCenterRouteName = shallowRef<DocsControlCenterRouteName>('docs-publications')
   const _lastOpenedDocumentIdByWorkspaceId = shallowRef<Record<string, string | null>>({})
 
   function setWorkspaceSidebarCollapsed(value: boolean) {

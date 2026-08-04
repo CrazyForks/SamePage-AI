@@ -8,7 +8,6 @@ import type {
 } from '@haohaoxue/lexora-contracts'
 import type {
   TiptapEditorBlockContextRequest,
-  TiptapEditorCollaborationBinding,
   TiptapEditorCommentRequest,
   TiptapEditorSelectionContextRequest,
 } from '@/components/tiptap-editor'
@@ -24,33 +23,33 @@ export interface ActiveDocumentDetail extends Omit<DocumentRecord, 'currentProje
   body: TiptapJsonContent
 }
 
+export type DocumentSaveFailureKind
+  = | 'conflict'
+    | 'forbidden'
+    | 'invalid-content'
+    | 'network'
+    | 'not-found'
+    | 'rate-limit'
+    | 'server'
+    | 'session-expired'
+    | 'unknown'
+
+export interface DocumentSaveFailure {
+  canRetry: boolean
+  kind: DocumentSaveFailureKind
+  replaceOnEdit?: boolean
+}
+
 /**
  * 文档编辑模式。
  */
 export type DocsDocumentEditorMode = 'default' | 'history'
 
 /**
- * 文档协作连接状态视觉类型。
- */
-export type DocsDocumentCollaborationStatusTone = 'neutral' | 'connecting' | 'connected' | 'danger'
-
-/**
  * 文档页主区视图。
  */
-export type DocsSurfaceView = 'document' | 'collaborations' | 'publication-settings' | 'trash'
+export type DocsSurfaceView = 'document' | 'publication-settings' | 'trash'
 export type DocumentDeleteAction = 'trash' | 'permanent'
-
-/**
- * 文档协作绑定。
- */
-export interface DocsDocumentEditorCollaborationBindings {
-  /** 协作会话 key */
-  sessionKey?: string
-  /** 标题协作绑定 */
-  title: TiptapEditorCollaborationBinding | null
-  /** 正文协作绑定 */
-  body: TiptapEditorCollaborationBinding | null
-}
 
 /**
  * 文档编辑区域属性。
@@ -62,8 +61,6 @@ export interface DocsDocumentEditorPaneProps {
   editable?: boolean
   /** 是否应自动聚焦标题 */
   autofocusTitle?: boolean
-  /** 协作绑定 */
-  collaboration?: DocsDocumentEditorCollaborationBindings | null
   /** 当前 URL 对应的块 ID */
   activeBlockId?: string | null
   isLoading: boolean
@@ -97,8 +94,6 @@ export interface DocsDocumentEditorProps {
   editable?: boolean
   /** 是否应自动聚焦标题 */
   autofocusTitle?: boolean
-  /** 协作绑定 */
-  collaboration?: DocsDocumentEditorCollaborationBindings | null
   /** 当前 URL 对应的块 ID */
   activeBlockId?: string | null
 }

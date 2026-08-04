@@ -11,7 +11,6 @@ import { useDocsSurfaceState } from '../../composables/useDocsSurfaceState'
 
 const { activeBlockId, handleRequestComment, pendingTitleFocusDocumentId } = useDocsContext()
 const {
-  collaboration,
   currentDocument,
   isDocumentItemLoading,
   markTitleAutofocusApplied,
@@ -41,7 +40,6 @@ const shouldAutofocusTitle = computed(() =>
     :mode="docsDocumentEditorMode"
     :editable="isDocsDocumentEditable"
     :autofocus-title="shouldAutofocusTitle"
-    :collaboration="collaboration"
     :active-block-id="activeBlockId"
     :is-loading="isDocumentItemLoading"
     :pane-state="documentPaneState"

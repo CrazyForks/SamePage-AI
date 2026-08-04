@@ -9,7 +9,7 @@
     "predev:debug": "pnpm prisma:sync",
     "dev": "node --watch --import @swc-node/register/esm-register src/main.ts",
     "dev:debug": "node --watch --inspect --import @swc-node/register/esm-register src/main.ts",
-    "dev:prod": "node dist/main.js",
+    "dev:prod": "node dist/main.mjs",
     "prebuild": "prisma generate",
     "build": "tsdown",
     "crypto:migrate-namespace": "node dist/cli/migrate-crypto-namespace.mjs",

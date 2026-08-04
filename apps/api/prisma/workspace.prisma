@@ -35,7 +35,7 @@ model Workspace {
   documents       Document[]
   publicationSite DocumentPublicationSite?
   chatSessions    ChatSession[]
-  chatAssets       ChatAsset[]              @relation("WorkspaceChatAssets")
+  chatAssets      ChatAsset[]              @relation("WorkspaceChatAssets")
   createdAt       DateTime                 @default(now())
   updatedAt       DateTime                 @updatedAt
   deletedAt       DateTime?

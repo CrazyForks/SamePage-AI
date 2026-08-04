@@ -3,8 +3,8 @@ layout: home
 
 hero:
   name: Lexora
-  text: 文档、协作与 AI 汇入同一个工作台
-  tagline: 面向个人与小团队的在线协作文档平台，内置 AI 对话、文档协作、公开发布和自部署能力。
+  text: 文档与 AI 汇入一个专注的个人工作台
+  tagline: 面向个人的文档驱动 AI 工作空间，内置 AI 对话、富文本编辑、历史版本、公开发布和自部署能力。
   image:
     src: /ui.png
     alt: Lexora 界面预览
@@ -35,15 +35,15 @@ features:
       wrap: true
     details: 基于富文本编辑器构建页面树，支持代码块、表格、数学公式、历史版本和回收站。
     link: /guide/documents
-  - title: 协作
+  - title: 公开发布
     icon:
-      src: /features/collaboration.svg
-      alt: 协作
+      src: /features/publication.svg
+      alt: 公开发布
       width: '28'
       height: '28'
       wrap: true
-    details: 支持指定用户邀请、协作链接、读写权限和子页面范围，协作准入由服务端统一校验。
-    link: /guide/collaboration
+    details: 支持把单篇文档或一组页面发布为独立的只读页面与资料站。
+    link: /guide/publication
   - title: 自部署
     icon:
       src: /features/self-host.svg

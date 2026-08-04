@@ -8,10 +8,17 @@ Recommended flow:
 
 1. Back up PostgreSQL data.
 2. Back up object storage data.
-3. Pull new images.
-4. Start compose.
-5. Wait for `migrate` to complete.
-6. Check `api`, `collab`, `agent`, and `web` health.
+3. Stop the current `web`, `agent`, and `api` application containers.
+4. Pull new images.
+5. Start compose with `--remove-orphans`.
+6. Wait for `migrate` to complete.
+7. Check `api`, `agent`, and `web` health.
+
+```bash
+docker compose -f infrastructure/compose.prod.yml --env-file infrastructure/.env stop web agent api
+docker compose -f infrastructure/compose.prod.yml --env-file infrastructure/.env pull
+docker compose -f infrastructure/compose.prod.yml --env-file infrastructure/.env up -d --remove-orphans
+```
 
 ## Database Migrations
 
@@ -35,7 +42,6 @@ Production compose uses local logs with file size and retention limits. Start tr
 
 ```bash
 docker compose -f infrastructure/compose.prod.yml logs api
-docker compose -f infrastructure/compose.prod.yml logs collab
 docker compose -f infrastructure/compose.prod.yml logs agent
 docker compose -f infrastructure/compose.prod.yml logs web
 ```

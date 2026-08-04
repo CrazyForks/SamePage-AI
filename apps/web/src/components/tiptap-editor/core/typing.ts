@@ -1,27 +1,10 @@
-import type {
-  CollabAwarenessState,
-  TiptapJsonContent,
-} from '@haohaoxue/lexora-contracts'
-import type { HocuspocusProvider } from '@hocuspocus/provider'
+import type { TiptapJsonContent } from '@haohaoxue/lexora-contracts'
 import type { Editor, Extensions } from '@tiptap/core'
 import type { EditorProps } from '@tiptap/pm/view'
-import type { Doc } from 'yjs'
 
 export type TiptapEditorHandleKeyDown = NonNullable<EditorProps['handleKeyDown']>
 export type TiptapEditorHandleTextInput = NonNullable<EditorProps['handleTextInput']>
 export type TiptapEditorContent = TiptapJsonContent
-export type TiptapEditorContentSource = 'props' | 'collaboration'
-
-export interface TiptapEditorCollaborationBinding {
-  /** 协作文档 */
-  document: Doc
-  /** 协作字段 */
-  field: string
-  /** 协作 provider */
-  provider?: HocuspocusProvider | null
-  /** 当前协作身份摘要 */
-  awarenessState?: CollabAwarenessState | null
-}
 
 export interface TiptapEditorProps {
   /**
@@ -34,11 +17,6 @@ export interface TiptapEditorProps {
    * @description 编辑器内容节点数组
    */
   content: TiptapEditorContent
-  /**
-   * 内容真相来源
-   * @description 协作模式下由 Y.Doc 提供初始内容，不再从 props.content hydrate
-   */
-  contentSource?: TiptapEditorContentSource
   /**
    * 是否可编辑
    * @description 关闭后仅保留只读预览能力

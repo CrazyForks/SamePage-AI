@@ -25,13 +25,12 @@ export function createAmapMcpConfigFormModel(config: unknown): AmapMcpConfigForm
   const parsed = parseAmapMcpSkillCardConfig(config)
 
   return {
-    apiKey: parsed.apiKey,
+    apiKey: '',
     apiKeyConfigured: parsed.apiKeyConfigured,
   }
 }
 
 export function toAmapMcpSkillConfig(model: AmapMcpConfigFormModel): AgentAmapMcpSkillCredentialConfig {
-  return AgentAmapMcpSkillCredentialConfigSchema.parse({
-    apiKey: model.apiKey.trim(),
-  })
+  const apiKey = model.apiKey.trim()
+  return AgentAmapMcpSkillCredentialConfigSchema.parse(apiKey ? { apiKey } : {})
 }

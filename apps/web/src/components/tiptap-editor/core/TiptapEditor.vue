@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import type { EditorEvents } from '@tiptap/core'
 import type { TiptapEditorContent, TiptapEditorEmits, TiptapEditorProps } from './typing'
-import { isChangeOrigin } from '@tiptap/extension-collaboration'
 import { EditorContent, useEditor } from '@tiptap/vue-3'
 import { onBeforeUnmount, watch } from 'vue'
 import { translate } from '@/i18n'
@@ -9,14 +8,11 @@ import { unwrapTiptapContent, wrapTiptapContent } from './utils'
 
 const props = withDefaults(defineProps<TiptapEditorProps>(), {
   editable: true,
-  contentSource: 'props',
 })
 const emits = defineEmits<TiptapEditorEmits>()
 
 const editor = useEditor({
-  content: props.contentSource === 'props'
-    ? wrapTiptapContent(props.content)
-    : undefined,
+  content: wrapTiptapContent(props.content),
   extensions: props.initialExtensions,
   editable: props.editable,
   enableContentCheck: true,
@@ -34,10 +30,6 @@ const editor = useEditor({
 })
 
 function handleEditorUpdate(options: EditorEvents['update']) {
-  if (props.contentSource === 'collaboration' && isChangeOrigin(options.transaction)) {
-    return
-  }
-
   emits('update:content', unwrapTiptapContent(options.editor.getJSON()))
 }
 
@@ -75,10 +67,6 @@ function destroyEditor() {
 watch(
   () => props.content,
   (content) => {
-    if (props.contentSource !== 'props') {
-      return
-    }
-
     syncEditorContent(content)
   },
 )

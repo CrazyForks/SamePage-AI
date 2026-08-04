@@ -21,9 +21,7 @@ export interface MathPanelController {
 }
 
 export function useMathPanel(editor: Editor): MathPanelController {
-  const editorSnapshot = useEditorSnapshot(editor, {
-    ignoreCollaborationOrigin: true,
-  })
+  const editorSnapshot = useEditorSnapshot(editor)
   const isOpen = shallowRef(false)
   const draftLatex = shallowRef('')
   const dismissedSelectionKey = shallowRef<string | null>(null)

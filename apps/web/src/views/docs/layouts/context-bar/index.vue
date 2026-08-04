@@ -8,20 +8,21 @@ import { useI18n } from 'vue-i18n'
 import { getPublicationSiteManagement } from '@/apis/document-publication'
 import { useWorkspaceStore } from '@/stores/workspace'
 import DocumentHeaderActions from '../../components/document-header-actions'
+import DocumentSaveStatus from '../../components/document-save-status'
 import { useActiveDocument } from '../../composables/useActiveDocument'
 import { useDocsControlCenterTabs } from '../../composables/useDocsControlCenterTabs'
 import { useDocsSurfaceState } from '../../composables/useDocsSurfaceState'
 import DocsControlCenterContextBarLayout from '../control-center-context-bar'
 
-const {
-  canReconnectCollaboration,
-  collaborationStatusHint,
-  collaborationStatusLabel,
-  collaborationStatusTone,
-  reconnectCollaboration,
-} = useActiveDocument()
 const { t } = useI18n()
 const workspaceStore = useWorkspaceStore()
+const {
+  canRetrySave,
+  discardLocalChangesAndReload,
+  failureKind,
+  retrySave,
+  saveState,
+} = useActiveDocument()
 const { currentSurface, isDocumentSurface, visibleBreadcrumbLabels } = useDocsSurfaceState()
 const { activeTab } = useDocsControlCenterTabs()
 const PUBLICATION_SITE_STATE_EVENT = 'lexora:publication-site-state-change'
@@ -39,12 +40,6 @@ const surfaceContext = computed(() => {
 const isControlCenterSurface = computed(() => currentSurface.value !== 'document')
 const isPublicationSettingsSurface = computed(() => currentSurface.value === 'publication-settings')
 const isSingleLine = computed(() => isDocumentSurface.value || !surfaceContext.value.description)
-const connectionStatusClass = computed(() =>
-  collaborationStatusTone.value ? `is-${collaborationStatusTone.value}` : null,
-)
-const connectionStatusTitle = computed(() =>
-  collaborationStatusHint.value || collaborationStatusLabel.value || undefined,
-)
 const publicationSiteUrl = computed(() => publicationSiteState.value
   ? new URL(`${DOCUMENT_SITE_PUBLICATION_ROUTE_PREFIX}/${publicationSiteState.value.id}`, window.location.origin).toString()
   : '',
@@ -128,26 +123,6 @@ function handlePublicationSiteStateChange(event: Event) {
               <span class="truncate text-sm text-secondary">{{ label }}</span>
             </ElBreadcrumbItem>
           </ElBreadcrumb>
-
-          <button
-            v-if="collaborationStatusLabel && canReconnectCollaboration"
-            type="button"
-            class="docs-view-context__connection-status is-actionable inline-flex h-4 w-4 shrink-0 items-center justify-center border-0 bg-transparent p-0"
-            :class="connectionStatusClass"
-            :title="connectionStatusTitle"
-            @click="reconnectCollaboration"
-          >
-            <span class="docs-view-context__connection-dot h-2 w-2 rounded-full" aria-hidden="true" />
-          </button>
-
-          <span
-            v-else-if="collaborationStatusLabel"
-            class="docs-view-context__connection-status inline-flex h-4 w-4 shrink-0 items-center justify-center border-0 bg-transparent p-0"
-            :class="connectionStatusClass"
-            :title="connectionStatusTitle"
-          >
-            <span class="docs-view-context__connection-dot h-2 w-2 rounded-full" aria-hidden="true" />
-          </span>
         </div>
       </template>
 
@@ -166,6 +141,13 @@ function handlePublicationSiteStateChange(event: Event) {
     </div>
 
     <div v-if="isDocumentSurface" class="docs-view-context__actions flex shrink-0 items-center gap-2">
+      <DocumentSaveStatus
+        :can-retry="canRetrySave"
+        :failure-kind="failureKind"
+        :save-state="saveState"
+        @reload="discardLocalChangesAndReload"
+        @retry="retrySave"
+      />
       <DocumentHeaderActions />
     </div>
     <div v-else-if="isPublicationSettingsSurface" class="docs-view-context__actions flex shrink-0 items-center gap-2">
@@ -181,31 +163,6 @@ function handlePublicationSiteStateChange(event: Event) {
   .docs-view-context__content.is-single-line {
     grid-template-rows: 1.25rem;
     height: 1.25rem;
-  }
-
-  .docs-view-context__connection-status {
-    --docs-view-context-connection-color: var(--brand-text-secondary);
-
-    &.is-connected {
-      --docs-view-context-connection-color: var(--brand-success);
-    }
-
-    &.is-connecting {
-      --docs-view-context-connection-color: var(--brand-warning);
-    }
-
-    &.is-danger {
-      --docs-view-context-connection-color: var(--brand-error);
-    }
-
-    &.is-actionable {
-      cursor: pointer;
-    }
-  }
-
-  .docs-view-context__connection-dot {
-    background: var(--docs-view-context-connection-color);
-    box-shadow: 0 0 0 0.2rem color-mix(in srgb, var(--docs-view-context-connection-color) 14%, transparent);
   }
 
   .docs-view-context__surface-description {

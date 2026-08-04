@@ -16,7 +16,6 @@ export const AgentAmapMcpSkillCredentialConfigSchema = z.object({
 
 export const AgentAmapMcpSkillCardConfigSchema = z.object({
   apiKeyConfigured: z.boolean().default(false),
-  apiKey: z.string().default(''),
 }).strict()
 
 export const AGENT_AMAP_MCP_TOOL_DEFINITIONS = [

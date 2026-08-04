@@ -8,13 +8,6 @@ const { t } = useI18n()
 
 <template>
   <ElTabs v-model="activeTab" class="docs-control-center-context-bar flex h-full max-w-full w-fit items-center">
-    <ElTabPane name="collaborations">
-      <template #label>
-        <span class="inline-flex h-[var(--default-header-height)] items-center pr-3.5 text-[15px] font-medium leading-none">
-          {{ t('docs.common.collaboration') }}
-        </span>
-      </template>
-    </ElTabPane>
     <ElTabPane name="publications">
       <template #label>
         <span class="inline-flex h-[var(--default-header-height)] items-center px-3.5 text-[15px] font-medium leading-none">

@@ -197,7 +197,7 @@ function handleExpandChange(user: SystemAdminUserItem, expandedUsers: SystemAdmi
         </template>
       </ElTableColumn>
 
-      <ElTableColumn :label="t('admin.users.collaborationCode')" width="150">
+      <ElTableColumn :label="t('admin.users.accountCode')" width="150">
         <template #default="{ row }">
           <span class="font-mono text-xs font-medium text-secondary">
             {{ row.userCode }}

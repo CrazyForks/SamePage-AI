@@ -1,10 +1,6 @@
-export const TIPTAP_NESTED_PARAGRAPH_PARENT_NODE_NAMES = [
-  'blockquote',
-  'listItem',
-  'taskItem',
-  'tableCell',
-  'tableHeader',
-] as const
+export {
+  TIPTAP_BODY_NESTED_PARAGRAPH_PARENT_NODE_TYPES as TIPTAP_NESTED_PARAGRAPH_PARENT_NODE_NAMES,
+} from '@haohaoxue/lexora-contracts/tiptap/document-body'
 
 export const TIPTAP_STRUCTURAL_BACKSPACE_BOUNDARY_NODE_NAMES = [
   'blockquote',

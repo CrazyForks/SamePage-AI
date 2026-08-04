@@ -1,7 +1,6 @@
 import type { SessionUserSchema } from './auth'
 import type {
   AuditUserSummarySchema,
-  UserCollabIdentitySchema,
 } from './identity'
 import { z } from 'zod'
 import { AuthProviderSchema } from './auth'
@@ -145,8 +144,3 @@ export type UpdateUserPreferencesRequest = z.infer<typeof UpdateUserPreferencesR
 export type StartOauthBindingRequest = z.infer<typeof StartOauthBindingRequestSchema>
 export type StartOauthBindingResponse = z.infer<typeof StartOauthBindingResponseSchema>
 export type UserPermissionList = z.infer<typeof UserPermissionListSchema>
-
-/**
- * 协作用户身份摘要。
- */
-export type UserCollabIdentity = z.infer<typeof UserCollabIdentitySchema>

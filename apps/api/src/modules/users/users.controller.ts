@@ -5,7 +5,6 @@ import type {
   SessionUser,
   StartOauthBindingResponse,
   UpdateCurrentUserAvatarResponse,
-  UserCollabIdentity,
   UserPermissionList,
   UserSettings,
   UserSettingsPreferences,
@@ -24,7 +23,6 @@ import {
   Patch,
   Post,
   Put,
-  Query,
   Req,
   Res,
 } from '@nestjs/common'
@@ -40,7 +38,6 @@ import { UserEmailBindingsService } from './user-email-bindings.service'
 import {
   ConfirmBindEmailDto,
   DeleteCurrentUserDto,
-  FindUserByCodeQueryDto,
   RequestBindEmailCodeDto,
   StartOauthBindingDto,
   UpdateCurrentUserProfileDto,
@@ -82,14 +79,6 @@ export class UsersController {
     return {
       permissions: await this.usersService.getCurrentUserPermissions(authUser.id),
     }
-  }
-
-  @RequirePermissions(PERMISSIONS.USER_LOOKUP_BY_CODE)
-  @Get('lookup/by-code')
-  async findUserByUserCode(
-    @Query() query: FindUserByCodeQueryDto,
-  ): Promise<UserCollabIdentity> {
-    return this.usersService.findUserByUserCode(query.code)
   }
 
   @RequirePermissions(PERMISSIONS.USER_UPDATE_SELF)

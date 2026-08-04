@@ -49,7 +49,6 @@ export function resolveAgentSkillIcon(skill: AgentSkillIconSource): AgentSkillIc
     memory: 'memory-note',
     productivity: 'document-tree-file',
     knowledge: 'document-tree-file',
-    collaboration: 'chat',
     system: 'settings-gear',
   }
 

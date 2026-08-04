@@ -1,5 +1,4 @@
-export * from './collaboration'
+export * from './access'
 export * from './core'
 export * from './markdown-snapshot'
 export * from './publication'
-export * from './ydoc'

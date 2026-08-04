@@ -2,7 +2,6 @@ import type { Editor, EditorEvents } from '@tiptap/core'
 import type { ComputedRef, ShallowRef } from 'vue'
 import { computed, onBeforeUnmount, onMounted, shallowRef, watch } from 'vue'
 import { getCurrentBlock } from '../../commands/currentBlock'
-import { isCollaborationOriginTransaction } from '../shared/collaborationOrigin'
 import { resolveBlockTriggerAnchorRect } from './blockTriggerPosition'
 
 export type BlockTriggerPanel = 'root' | 'align' | 'color' | 'link'
@@ -203,11 +202,7 @@ export function useBlockTriggerOverlay(editor: Editor) {
     anchorRect.value = resolveBlockTriggerAnchorRect(editor)
   }
 
-  function handleSelectionUpdate(event?: EditorEvents['selectionUpdate']) {
-    if (isCollaborationOriginTransaction(event?.transaction)) {
-      return
-    }
-
+  function handleSelectionUpdate(_event?: EditorEvents['selectionUpdate']) {
     if (!canShowTriggerMenu()) {
       anchorRect.value = null
       isTriggerHotspotHovered.value = false

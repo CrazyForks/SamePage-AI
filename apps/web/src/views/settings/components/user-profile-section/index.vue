@@ -40,20 +40,20 @@ const {
       :description="sectionDescription"
     >
       <template #aside>
-        <div class="user-profile-section__collab-code grid min-w-[11.25rem] grid-cols-[minmax(0,1fr)_auto] items-center gap-2 rounded-lg px-2 py-[0.3125rem] pl-[0.625rem] max-[640px]:w-full max-[640px]:min-w-0">
+        <div class="user-profile-section__account-code grid min-w-[11.25rem] grid-cols-[minmax(0,1fr)_auto] items-center gap-2 rounded-lg px-2 py-[0.3125rem] pl-[0.625rem] max-[640px]:w-full max-[640px]:min-w-0">
           <span class="flex min-w-0 flex-col gap-[0.125rem]">
             <span class="text-[0.625rem] leading-none text-secondary">
-              {{ t('settings.user.profile.collaborationCode') }}
+              {{ t('settings.user.profile.accountCode') }}
             </span>
             <strong class="truncate font-mono text-xs leading-[1.1] text-main">{{ props.userCode }}</strong>
           </span>
-          <ElTooltip :content="t('settings.user.profile.copyCollaborationCode')" placement="top">
+          <ElTooltip :content="t('settings.user.profile.copyAccountCode')" placement="top">
             <ElButton
               text
               circle
               :type="copiedUserCode ? 'success' : 'primary'"
               class="user-profile-section__copy-button"
-              :aria-label="copiedUserCode ? t('settings.user.profile.collaborationCodeCopied') : t('settings.user.profile.copyCollaborationCode')"
+              :aria-label="copiedUserCode ? t('settings.user.profile.accountCodeCopied') : t('settings.user.profile.copyAccountCode')"
               @click="handleCopyUserCode"
             >
               <CopyStateIcon :copied="copiedUserCode" />
@@ -132,7 +132,7 @@ const {
 .user-profile-section {
   border-color: color-mix(in srgb, var(--brand-border-base) 85%, transparent);
 
-  &__collab-code {
+  &__account-code {
     border: 1px solid color-mix(in srgb, var(--brand-border-base) 78%, transparent);
     border-radius: 0.5rem;
     background: color-mix(in srgb, var(--brand-fill-lighter) 72%, transparent);

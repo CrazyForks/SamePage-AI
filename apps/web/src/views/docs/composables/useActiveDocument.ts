@@ -2,51 +2,43 @@ import type {
   DocumentItem,
   DocumentPageWidthMode,
   DocumentPaneState,
-  DocumentSaveState,
   DocumentVersionSnapshot,
   TiptapJsonContent,
 } from '@haohaoxue/lexora-contracts'
-import type {
-  ActiveDocumentDetail,
-  DocsDocumentCollaborationStatusTone,
-} from '../typing'
+import type { ActiveDocumentDetail, DocumentSaveFailure } from '../typing'
 import type {
   DocumentCurrent,
   RestoreDocumentVersionSnapshotResponse,
 } from '@/apis/document'
 import {
   DOCUMENT_PANE_STATE,
-  DOCUMENT_SAVE_STATE,
 } from '@haohaoxue/lexora-contracts/document/constants'
+import { API_ERROR_CODE } from '@haohaoxue/lexora-contracts/status-code'
 import { TIPTAP_SCHEMA_VERSION } from '@haohaoxue/lexora-contracts/tiptap/constants'
-import { createCollabAwarenessState } from '@haohaoxue/lexora-shared/collab'
 import {
   collectDocumentAssetIds,
-  getDocumentSaveStateLabel,
   getDocumentTitlePlainText,
   getDocumentVersionSnapshotSummary,
   hasDocumentContent,
   hydrateDocumentAssetAttributes,
 } from '@haohaoxue/lexora-shared/document'
-import { createSharedComposable, useOnline } from '@vueuse/core'
+import { createSharedComposable } from '@vueuse/core'
 import {
-  computed,
   shallowRef,
   watch,
 } from 'vue'
 import {
-  createDocumentCollabTicket as createDocumentCollabTicketRequest,
   getDocumentCurrent as getDocumentCurrentRequest,
   getDocumentVersionSnapshots as getDocumentVersionSnapshotsRequest,
   resolveDocumentAssets as resolveDocumentAssetsRequest,
   restoreDocumentVersionSnapshot as restoreDocumentVersionSnapshotRequest,
+  saveDocumentContent as saveDocumentContentRequest,
 } from '@/apis/document'
 import { translate } from '@/i18n'
-import { useUserStore } from '@/stores/user'
-import dayjs from '@/utils/dayjs'
-import { ElMessage } from '@/utils/element-plus'
+import { ElMessage, ElMessageBox } from '@/utils/element-plus'
+import { toRequestError } from '@/utils/request-error'
 import { useDocsContext } from './useDocsContext'
-import { useDocsDocumentCollabRuntime } from './useDocsDocumentCollabRuntime'
+import { useDocumentAutosave } from './useDocumentAutosave'
 import { useDocumentTree } from './useDocumentTree'
 
 const UNSUPPORTED_SCHEMA_VERSION_ERROR_CODE = 'DOCUMENT_UNSUPPORTED_SCHEMA_VERSION'
@@ -58,11 +50,9 @@ type UnsupportedSchemaVersionError = Error & {
 }
 
 interface UseActiveDocumentStateOptions {
+  onSaveError?: (error: unknown) => void
   patchDocumentItem: (documentId: string, input: Partial<DocumentItem>) => void
-}
-
-interface UseActiveDocumentSaveStateOptions {
-  currentDocument: ReturnType<typeof shallowRef<ActiveDocumentDetail | null>>
+  saveDocument?: typeof saveDocumentContentRequest
 }
 
 interface ApplyRestoredSnapshotOptions {
@@ -71,52 +61,23 @@ interface ApplyRestoredSnapshotOptions {
 }
 
 export const useActiveDocument = createSharedComposable(() => {
-  const { activeDocumentId, pendingTitleFocusDocumentId } = useDocsContext()
+  const {
+    activeDocumentId,
+    pendingTitleFocusDocumentId,
+    setNavigationConfirmationHandler,
+  } = useDocsContext()
   const { patchDocumentItem, rememberLastOpenedDocument } = useDocumentTree()
-  const userStore = useUserStore()
   const isDocumentItemLoading = shallowRef(false)
   const isSnapshotsLoading = shallowRef(false)
-  const isReconnectingCollaboration = shallowRef(false)
-  const isOnline = useOnline()
   let loadRequestId = 0
+  let restoreRequestId = 0
   let snapshotRequestId = 0
 
   const state = useActiveDocumentState({
+    onSaveError: error => ElMessage.error(resolveDocumentSaveErrorMessage(error)),
     patchDocumentItem,
   })
-  const collaboration = useDocsDocumentCollabRuntime()
-  const collaborationAwarenessState = computed(() =>
-    createCollabAwarenessState(userStore.currentUser),
-  )
-  const isCollaborationReadonly = computed(() => collaboration.isReadonlyFallback.value)
-  const isCollaborationInitialSyncing = computed(() =>
-    Boolean(collaboration.runtimeDocument.value)
-    && !collaboration.isRemoteSynced.value
-    && !isCollaborationReadonly.value,
-  )
-  const collaborationStatusLabel = computed(() => resolveEditableCollaborationStatusLabel({
-    connectionError: collaboration.connectionError.value,
-    hasDocument: Boolean(state.currentDocument.value),
-    isReadonlyFallback: isCollaborationReadonly.value,
-    status: collaboration.connectionStatus.value,
-  }))
-  const collaborationStatusTone = computed(() => resolveEditableCollaborationStatusTone({
-    hasDocument: Boolean(state.currentDocument.value),
-    isReadonlyFallback: isCollaborationReadonly.value,
-    status: collaboration.connectionStatus.value,
-  }))
-  const collaborationStatusHint = computed(() => resolveEditableCollaborationStatusHint({
-    connectionError: collaboration.connectionError.value,
-    hasDocument: Boolean(state.currentDocument.value),
-    isReadonlyFallback: isCollaborationReadonly.value,
-    status: collaboration.connectionStatus.value,
-  }))
-  const canReconnectCollaboration = computed(() =>
-    Boolean(state.currentDocument.value)
-    && Boolean(state.currentDocument.value?.access.capabilities.canEdit)
-    && !isReconnectingCollaboration.value
-    && (collaboration.connectionStatus.value === 'disconnected' || collaboration.connectionStatus.value === 'error'),
-  )
+  setNavigationConfirmationHandler(state.flushSave)
 
   function updateDocumentTitle(title: TiptapJsonContent) {
     state.updateDocumentTitle(title)
@@ -127,12 +88,14 @@ export const useActiveDocument = createSharedComposable(() => {
   }
 
   async function loadCurrentDocument(id: string | null) {
+    restoreRequestId += 1
+    snapshotRequestId += 1
+    state.finishRestore()
     const requestId = ++loadRequestId
 
     if (!id) {
       isDocumentItemLoading.value = false
       isSnapshotsLoading.value = false
-      collaboration.reset()
       state.resetCurrentDocument()
       return
     }
@@ -170,18 +133,6 @@ export const useActiveDocument = createSharedComposable(() => {
 
       state.applyLoadedDocument(loadedDocument, [])
 
-      if (loadedDocument.access.capabilities.canEdit) {
-        collaboration.prepareRemoteDocument()
-        void collaboration.connect({
-          documentId: id,
-          createTicket: () => createDocumentCollabTicketRequest(id),
-          awarenessState: collaborationAwarenessState.value,
-        })
-      }
-      else {
-        collaboration.reset()
-      }
-
       rememberLastOpenedDocument(id)
     }
     catch (error) {
@@ -190,7 +141,6 @@ export const useActiveDocument = createSharedComposable(() => {
       }
 
       state.setDocumentErrorState(resolveDocumentErrorState(error))
-      collaboration.reset()
     }
     finally {
       if (isActiveLoadRequest(requestId, id)) {
@@ -201,26 +151,48 @@ export const useActiveDocument = createSharedComposable(() => {
   }
 
   async function confirmNavigation() {
-    return true
+    return await state.flushSave()
   }
 
   async function restoreSnapshot(snapshotId: string) {
-    if (!state.currentDocument.value) {
+    const documentId = state.currentDocument.value?.id
+
+    if (!documentId || state.isRestoringSnapshot.value) {
       return
     }
 
-    const documentAtRestoreStart = state.currentDocument.value
+    const requestId = ++restoreRequestId
     state.startRestore()
 
     try {
-      const currentDocument = await getDocumentCurrentRequest(documentAtRestoreStart.id)
+      const canRestore = await state.flushSave()
+      const documentAtRestoreStart = state.currentDocument.value
+
+      if (
+        !canRestore
+        || !documentAtRestoreStart
+        || !isActiveRestoreRequest(requestId, documentId)
+      ) {
+        return
+      }
+
       const restoredDocument = await restoreDocumentVersionSnapshotRequest(documentAtRestoreStart.id, {
-        baseProjectionRevision: currentDocument.currentProjection.projectionRevision,
+        baseProjectionRevision: documentAtRestoreStart.currentProjectionRevision,
         versionSnapshotId: snapshotId,
       })
+
+      if (!isActiveRestoreRequest(requestId, documentAtRestoreStart.id)) {
+        return
+      }
+
       const [hydratedBody] = await hydrateDocumentBodies(documentAtRestoreStart.id, [
         restoredDocument.current.currentProjection.body,
       ])
+
+      if (!isActiveRestoreRequest(requestId, documentAtRestoreStart.id)) {
+        return
+      }
+
       const hydratedRestoredDocument = {
         ...restoredDocument,
         current: {
@@ -232,12 +204,10 @@ export const useActiveDocument = createSharedComposable(() => {
         },
       }
 
-      const { isNoopRestore, nextDocument } = state.applyRestoredSnapshot({
+      const { isNoopRestore } = state.applyRestoredSnapshot({
         documentAtRestoreStart,
         restoreResponse: hydratedRestoredDocument,
       })
-      reconnectDocumentIfWritable(nextDocument)
-
       if (isNoopRestore) {
         ElMessage.info(translate('docs.history.restoreAlreadyCurrent'))
       }
@@ -246,26 +216,62 @@ export const useActiveDocument = createSharedComposable(() => {
       }
     }
     catch (error) {
+      if (!isActiveRestoreRequest(requestId, documentId)) {
+        return
+      }
+
       if (isUnsupportedSchemaVersionError(error)) {
         state.setDocumentErrorState(DOCUMENT_PANE_STATE.UNSUPPORTED_SCHEMA)
-        collaboration.reset()
       }
 
       ElMessage.error(resolveDocumentWriteErrorMessage(error))
     }
     finally {
-      state.finishRestore()
+      if (requestId === restoreRequestId) {
+        state.finishRestore()
+      }
     }
   }
 
   async function reloadCurrentDocument() {
+    const canReload = await state.flushSave()
+
+    if (!canReload) {
+      return false
+    }
+
+    await loadCurrentDocument(activeDocumentId.value)
+    return true
+  }
+
+  async function discardLocalChangesAndReload() {
+    try {
+      await ElMessageBox.confirm(
+        translate('docs.autosave.reloadConflictMessage'),
+        translate('docs.autosave.reloadConflictTitle'),
+        {
+          cancelButtonText: translate('docs.common.cancel'),
+          confirmButtonText: translate('docs.autosave.reload'),
+          type: 'warning',
+        },
+      )
+    }
+    catch {
+      return
+    }
+
     await loadCurrentDocument(activeDocumentId.value)
   }
 
   async function ensureSnapshotsLoaded() {
     const documentId = activeDocumentId.value
 
-    if (!documentId || state.loadedSnapshotsDocumentId.value === documentId || isSnapshotsLoading.value) {
+    if (
+      !documentId
+      || state.currentDocument.value?.id !== documentId
+      || state.loadedSnapshotsDocumentId.value === documentId
+      || isSnapshotsLoading.value
+    ) {
       return
     }
 
@@ -273,48 +279,36 @@ export const useActiveDocument = createSharedComposable(() => {
     isSnapshotsLoading.value = true
 
     try {
-      const loadedSnapshots = await getDocumentVersionSnapshotsRequest(documentId)
+      while (isActiveSnapshotRequest(requestId, documentId)) {
+        const latestSnapshotIdAtRequestStart: string | null
+          = state.currentDocument.value?.latestVersionSnapshotId ?? null
+        const loadedSnapshots = await getDocumentVersionSnapshotsRequest(documentId)
 
-      if (!isActiveSnapshotRequest(requestId, documentId)) {
+        if (!isActiveSnapshotRequest(requestId, documentId)) {
+          return
+        }
+
+        const resolvedBodies = await hydrateDocumentBodies(documentId, loadedSnapshots.map(snapshot => snapshot.body))
+
+        if (!isActiveSnapshotRequest(requestId, documentId)) {
+          return
+        }
+
+        if (state.currentDocument.value?.latestVersionSnapshotId !== latestSnapshotIdAtRequestStart) {
+          continue
+        }
+
+        state.applyLoadedSnapshots(documentId, loadedSnapshots.map((snapshot, index) => ({
+          ...snapshot,
+          body: resolvedBodies[index] ?? snapshot.body,
+        })))
         return
       }
-
-      const resolvedBodies = await hydrateDocumentBodies(documentId, loadedSnapshots.map(snapshot => snapshot.body))
-
-      if (!isActiveSnapshotRequest(requestId, documentId)) {
-        return
-      }
-
-      state.applyLoadedSnapshots(documentId, loadedSnapshots.map((snapshot, index) => ({
-        ...snapshot,
-        body: resolvedBodies[index] ?? snapshot.body,
-      })))
     }
     finally {
-      if (isActiveSnapshotRequest(requestId, documentId)) {
+      if (requestId === snapshotRequestId) {
         isSnapshotsLoading.value = false
       }
-    }
-  }
-
-  async function reconnectCollaboration() {
-    const documentId = state.currentDocument.value?.id
-
-    if (!documentId || !state.currentDocument.value?.access.capabilities.canEdit || isReconnectingCollaboration.value) {
-      return false
-    }
-
-    isReconnectingCollaboration.value = true
-
-    try {
-      return await collaboration.connect({
-        documentId,
-        createTicket: () => createDocumentCollabTicketRequest(documentId),
-        awarenessState: collaborationAwarenessState.value,
-      })
-    }
-    finally {
-      isReconnectingCollaboration.value = false
     }
   }
 
@@ -323,7 +317,15 @@ export const useActiveDocument = createSharedComposable(() => {
   }
 
   function isActiveSnapshotRequest(requestId: number, documentId: string | null) {
-    return requestId === snapshotRequestId && activeDocumentId.value === documentId
+    return requestId === snapshotRequestId
+      && activeDocumentId.value === documentId
+      && state.currentDocument.value?.id === documentId
+  }
+
+  function isActiveRestoreRequest(requestId: number, documentId: string) {
+    return requestId === restoreRequestId
+      && activeDocumentId.value === documentId
+      && state.currentDocument.value?.id === documentId
   }
 
   function markTitleAutofocusApplied() {
@@ -332,31 +334,6 @@ export const useActiveDocument = createSharedComposable(() => {
     }
 
     pendingTitleFocusDocumentId.value = null
-  }
-
-  function applyDocumentTitleChanged(documentCurrent: DocumentCurrent) {
-    if (!state.patchDocumentTitle(documentCurrent)) {
-      return
-    }
-
-    if (state.currentDocument.value) {
-      reconnectDocumentIfWritable(state.currentDocument.value)
-    }
-  }
-
-  function reconnectDocumentIfWritable(document: ActiveDocumentDetail) {
-    collaboration.reset()
-
-    if (!document.access.capabilities.canEdit) {
-      return
-    }
-
-    collaboration.prepareRemoteDocument()
-    void collaboration.connect({
-      documentId: document.id,
-      createTicket: () => createDocumentCollabTicketRequest(document.id),
-      awarenessState: collaborationAwarenessState.value,
-    })
   }
 
   watch(
@@ -379,69 +356,25 @@ export const useActiveDocument = createSharedComposable(() => {
     },
   )
 
-  watch(isOnline, (nextOnline, previousOnline) => {
-    if (
-      !nextOnline
-      || previousOnline !== false
-      || collaboration.connectionStatus.value !== 'disconnected'
-    ) {
-      return
-    }
-
-    void reconnectCollaboration()
-  })
-
-  watch(
-    [
-      () => state.currentDocument.value?.id ?? null,
-      () => collaboration.isRemoteSynced.value,
-      () => collaboration.projectionVersion.value,
-    ],
-    () => {
-      const currentDocument = state.currentDocument.value
-
-      if (!currentDocument || !collaboration.isRemoteSynced.value) {
-        return
-      }
-
-      const projected = collaboration.projectContent()
-
-      if (!projected) {
-        return
-      }
-
-      state.syncRuntimeProjection(projected)
-    },
-    {
-      flush: 'post',
-    },
-  )
-
   return {
-    applyDocumentTitleChanged,
-    canReconnectCollaboration,
-    collaboration: collaboration.bindings,
-    collaborationConnectionStatus: collaboration.connectionStatus,
-    collaborationStatusHint,
-    collaborationStatusLabel,
-    collaborationStatusTone,
+    canRetrySave: state.canRetrySave,
     confirmNavigation,
     currentDocument: state.currentDocument,
+    discardLocalChangesAndReload,
     documentErrorState: state.documentErrorState,
     ensureSnapshotsLoaded,
-    isCollaborationInitialSyncing,
-    isCollaborationReadonly,
+    failureKind: state.failureKind,
+    hasUnsavedChanges: state.hasUnsavedChanges,
     isDocumentItemLoading,
     isRestoringSnapshot: state.isRestoringSnapshot,
     isSaving: state.isSaving,
     isSnapshotsLoading,
     markTitleAutofocusApplied,
     patchDocumentPageWidthMode: state.patchDocumentPageWidthMode,
-    reconnectCollaboration,
+    retrySave: state.retrySave,
     reloadCurrentDocument,
     restoreSnapshot,
     saveState: state.saveState,
-    saveStateLabel: state.saveStateLabel,
     snapshots: state.snapshots,
     updateDocumentContent,
     updateDocumentTitle,
@@ -449,20 +382,32 @@ export const useActiveDocument = createSharedComposable(() => {
 })
 
 export function useActiveDocumentState({
+  onSaveError,
   patchDocumentItem,
+  saveDocument = saveDocumentContentRequest,
 }: UseActiveDocumentStateOptions) {
   const currentDocument = shallowRef<ActiveDocumentDetail | null>(null)
   const snapshots = shallowRef<DocumentVersionSnapshot[]>([])
-  const isSaving = shallowRef(false)
   const isRestoringSnapshot = shallowRef(false)
   const documentErrorState = shallowRef<DocumentPaneState | null>(null)
   const loadedSnapshotsDocumentId = shallowRef<string | null>(null)
-  const save = useActiveDocumentSaveState({
-    currentDocument,
+  const save = useDocumentAutosave({
+    classifyError: resolveDocumentSaveFailure,
+    onError: onSaveError,
+    onPersisted: applyPersistedDocument,
+    persist: saveDocument,
+    readDocument: () => currentDocument.value
+      ? {
+          id: currentDocument.value.id,
+          currentProjectionRevision: currentDocument.value.currentProjectionRevision,
+          schemaVersion: currentDocument.value.schemaVersion,
+          title: currentDocument.value.title,
+          body: currentDocument.value.body,
+        }
+      : null,
   })
-
   function updateDocumentTitle(title: TiptapJsonContent) {
-    if (!currentDocument.value) {
+    if (!currentDocument.value || isRestoringSnapshot.value) {
       return
     }
 
@@ -474,10 +419,11 @@ export function useActiveDocumentState({
     patchDocumentItem(currentDocument.value.id, {
       title: getDocumentTitlePlainText(title),
     })
+    save.markDirty()
   }
 
   function updateDocumentContent(content: TiptapJsonContent) {
-    if (!currentDocument.value) {
+    if (!currentDocument.value || isRestoringSnapshot.value) {
       return
     }
 
@@ -485,32 +431,7 @@ export function useActiveDocumentState({
       ...currentDocument.value,
       body: content,
     }
-  }
-
-  function syncRuntimeProjection(projection: {
-    title: TiptapJsonContent
-    body: TiptapJsonContent
-  }) {
-    if (!currentDocument.value) {
-      return
-    }
-
-    if (
-      JSON.stringify(currentDocument.value.title) === JSON.stringify(projection.title)
-      && JSON.stringify(currentDocument.value.body) === JSON.stringify(projection.body)
-    ) {
-      return
-    }
-
-    currentDocument.value = {
-      ...currentDocument.value,
-      title: projection.title,
-      body: projection.body,
-    }
-
-    patchDocumentItem(currentDocument.value.id, {
-      title: getDocumentTitlePlainText(projection.title),
-    })
+    save.markDirty()
   }
 
   function applyLoadedDocument(document: ActiveDocumentDetail, loadedSnapshots: DocumentVersionSnapshot[]) {
@@ -518,7 +439,12 @@ export function useActiveDocumentState({
     snapshots.value = loadedSnapshots
     documentErrorState.value = null
     loadedSnapshotsDocumentId.value = loadedSnapshots.length ? document.id : null
-    save.captureLoadedDocument(document)
+    save.captureLoadedDocument()
+    patchDocumentItem(document.id, buildTreePatch({
+      title: document.title,
+      body: document.body,
+      updatedAt: document.updatedAt,
+    }))
   }
 
   function applyLoadedSnapshots(documentId: string, loadedSnapshots: DocumentVersionSnapshot[]) {
@@ -541,31 +467,6 @@ export function useActiveDocumentState({
     }
   }
 
-  function patchDocumentTitle(documentCurrent: DocumentCurrent) {
-    if (currentDocument.value?.id !== documentCurrent.document.id) {
-      return false
-    }
-
-    currentDocument.value = {
-      ...currentDocument.value,
-      currentProjectionId: documentCurrent.currentProjection.id,
-      currentProjectionRevision: documentCurrent.currentProjection.projectionRevision,
-      latestVersionSnapshotId: documentCurrent.document.latestVersionSnapshotId,
-      summary: documentCurrent.document.summary,
-      title: documentCurrent.currentProjection.title,
-      updatedAt: documentCurrent.document.updatedAt,
-    }
-
-    patchDocumentItem(documentCurrent.document.id, {
-      hasContent: documentCurrent.document.summary.length > 0,
-      summary: documentCurrent.document.summary,
-      title: getDocumentTitlePlainText(documentCurrent.currentProjection.title),
-      updatedAt: documentCurrent.document.updatedAt,
-    })
-    save.markSaved(documentCurrent.currentProjection.updatedAt)
-    return true
-  }
-
   function startRestore() {
     isRestoringSnapshot.value = true
   }
@@ -584,7 +485,7 @@ export function useActiveDocumentState({
 
     currentDocument.value = nextDocument
     snapshots.value = prependSnapshot(snapshots.value, restoreResponse.snapshot)
-    save.markSaved(restoreResponse.current.currentProjection.updatedAt)
+    save.captureLoadedDocument()
     patchDocumentItem(nextDocument.id, buildTreePatch({
       title: nextDocument.title,
       body: nextDocument.body,
@@ -613,65 +514,57 @@ export function useActiveDocumentState({
     save.reset()
   }
 
+  function applyPersistedDocument(documentCurrent: DocumentCurrent) {
+    if (currentDocument.value?.id !== documentCurrent.document.id) {
+      return
+    }
+
+    const localDocument = currentDocument.value
+    const didLatestSnapshotChange = localDocument.latestVersionSnapshotId
+      !== documentCurrent.document.latestVersionSnapshotId
+    currentDocument.value = {
+      ...localDocument,
+      currentProjectionId: documentCurrent.currentProjection.id,
+      currentProjectionRevision: documentCurrent.currentProjection.projectionRevision,
+      latestVersionSnapshotId: documentCurrent.document.latestVersionSnapshotId,
+      summary: documentCurrent.document.summary,
+      updatedAt: documentCurrent.document.updatedAt,
+    }
+
+    if (didLatestSnapshotChange) {
+      loadedSnapshotsDocumentId.value = null
+    }
+
+    patchDocumentItem(documentCurrent.document.id, buildTreePatch({
+      title: localDocument.title,
+      body: localDocument.body,
+      updatedAt: documentCurrent.document.updatedAt,
+    }))
+  }
+
   return {
     applyLoadedDocument,
     applyLoadedSnapshots,
     applyRestoredSnapshot,
+    canRetrySave: save.canRetry,
     currentDocument,
     documentErrorState,
+    failureKind: save.failureKind,
     finishRestore,
     isRestoringSnapshot,
-    isSaving,
+    flushSave: save.flush,
+    hasUnsavedChanges: save.hasUnsavedChanges,
+    isSaving: save.isSaving,
     loadedSnapshotsDocumentId,
     patchDocumentPageWidthMode,
-    patchDocumentTitle,
     resetCurrentDocument,
+    retrySave: save.retry,
     saveState: save.saveState,
-    saveStateLabel: save.saveStateLabel,
     setDocumentErrorState,
     snapshots,
     startRestore,
-    syncRuntimeProjection,
     updateDocumentContent,
     updateDocumentTitle,
-  }
-}
-
-function useActiveDocumentSaveState({
-  currentDocument,
-}: UseActiveDocumentSaveStateOptions) {
-  const saveState = shallowRef<DocumentSaveState>(DOCUMENT_SAVE_STATE.IDLE)
-  const lastPersistedAt = shallowRef<string | null>(null)
-  const lastUpdatedFromNow = computed(() =>
-    lastPersistedAt.value ? dayjs(lastPersistedAt.value).fromNow() : null,
-  )
-  const saveStateLabel = computed(() => getDocumentSaveStateLabel({
-    hasDocument: Boolean(currentDocument.value),
-    saveState: saveState.value,
-    lastUpdatedFromNow: lastUpdatedFromNow.value,
-  }))
-
-  function captureLoadedDocument(document: ActiveDocumentDetail) {
-    lastPersistedAt.value = document.updatedAt
-    saveState.value = DOCUMENT_SAVE_STATE.IDLE
-  }
-
-  function markSaved(persistedAt: string) {
-    lastPersistedAt.value = persistedAt
-    saveState.value = DOCUMENT_SAVE_STATE.SAVED
-  }
-
-  function reset() {
-    lastPersistedAt.value = null
-    saveState.value = DOCUMENT_SAVE_STATE.IDLE
-  }
-
-  return {
-    captureLoadedDocument,
-    markSaved,
-    reset,
-    saveState,
-    saveStateLabel,
   }
 }
 
@@ -737,6 +630,70 @@ export function resolveDocumentWriteErrorMessage(error: unknown): string {
   return translate('docs.history.restoreNoChange')
 }
 
+function resolveDocumentSaveErrorMessage(error: unknown): string {
+  return translate(`docs.autosave.failure.${resolveDocumentSaveFailure(error).kind}`)
+}
+
+export function resolveDocumentSaveFailure(error: unknown): DocumentSaveFailure {
+  const requestError = toRequestError(error)
+  const status = requestError.status
+  const errorCode = requestError.errorCode
+  const requestKind = (error as { kind?: unknown } | null)?.kind ?? requestError.kind
+
+  if (status === 409 || errorCode === API_ERROR_CODE.CONFLICT) {
+    return { canRetry: false, kind: 'conflict' }
+  }
+
+  if (
+    status === 401
+    || errorCode === API_ERROR_CODE.UNAUTHORIZED
+    || errorCode?.startsWith('auth.')
+  ) {
+    return { canRetry: false, kind: 'session-expired' }
+  }
+
+  if (status === 403 || errorCode === API_ERROR_CODE.FORBIDDEN) {
+    return { canRetry: false, kind: 'forbidden' }
+  }
+
+  if (status === 404 || errorCode === API_ERROR_CODE.NOT_FOUND) {
+    return { canRetry: false, kind: 'not-found' }
+  }
+
+  if (
+    status === 400
+    || status === 413
+    || status === 422
+    || errorCode === API_ERROR_CODE.BAD_REQUEST
+    || errorCode === API_ERROR_CODE.PAYLOAD_TOO_LARGE
+    || errorCode === API_ERROR_CODE.VALIDATION_FAILED
+  ) {
+    return {
+      canRetry: false,
+      kind: 'invalid-content',
+      replaceOnEdit: true,
+    }
+  }
+
+  if (status === 429 || requestKind === 'rate_limit') {
+    return { canRetry: true, kind: 'rate-limit' }
+  }
+
+  if (requestKind === 'network') {
+    return { canRetry: true, kind: 'network' }
+  }
+
+  if (
+    (typeof status === 'number' && status >= 500)
+    || requestKind === 'http'
+    || requestKind === 'parse'
+  ) {
+    return { canRetry: true, kind: 'server' }
+  }
+
+  return { canRetry: true, kind: 'unknown' }
+}
+
 export function isUnsupportedSchemaVersionError(error: unknown): error is UnsupportedSchemaVersionError {
   return error instanceof Error
     && (error as Partial<UnsupportedSchemaVersionError>).code === UNSUPPORTED_SCHEMA_VERSION_ERROR_CODE
@@ -777,95 +734,4 @@ function createUnsupportedSchemaVersionError(schemaVersion: unknown): Unsupporte
   error.code = UNSUPPORTED_SCHEMA_VERSION_ERROR_CODE
   error.schemaVersion = schemaVersion
   return error
-}
-
-function resolveEditableCollaborationStatusLabel(input: {
-  connectionError: string | null
-  hasDocument: boolean
-  isReadonlyFallback: boolean
-  status: ReturnType<typeof useDocsDocumentCollabRuntime>['connectionStatus']['value']
-}): string | null {
-  if (!input.hasDocument) {
-    return null
-  }
-
-  if (input.isReadonlyFallback) {
-    if (input.connectionError) {
-      return translate('docs.collabRuntime.statusPausedReadonly')
-    }
-
-    return input.status === 'error'
-      ? translate('docs.collabRuntime.statusUnavailableReadonly')
-      : translate('docs.collabRuntime.statusInterruptedReadonly')
-  }
-
-  switch (input.status) {
-    case 'connecting':
-      return translate('docs.collabRuntime.statusConnecting')
-    case 'connected':
-      return translate('docs.collabRuntime.statusConnected')
-    case 'disconnected':
-      return translate('docs.collabRuntime.statusDisconnected')
-    case 'error':
-      return translate('docs.collabRuntime.statusError')
-    default:
-      return null
-  }
-}
-
-function resolveEditableCollaborationStatusTone(input: {
-  hasDocument: boolean
-  isReadonlyFallback: boolean
-  status: ReturnType<typeof useDocsDocumentCollabRuntime>['connectionStatus']['value']
-}): DocsDocumentCollaborationStatusTone | null {
-  if (!input.hasDocument) {
-    return null
-  }
-
-  if (input.isReadonlyFallback) {
-    return 'danger'
-  }
-
-  switch (input.status) {
-    case 'connecting':
-      return 'connecting'
-    case 'connected':
-      return 'connected'
-    case 'disconnected':
-    case 'error':
-      return 'danger'
-    default:
-      return 'neutral'
-  }
-}
-
-function resolveEditableCollaborationStatusHint(input: {
-  connectionError: string | null
-  hasDocument: boolean
-  isReadonlyFallback: boolean
-  status: ReturnType<typeof useDocsDocumentCollabRuntime>['connectionStatus']['value']
-}): string | null {
-  if (!input.hasDocument) {
-    return null
-  }
-
-  if (input.isReadonlyFallback) {
-    if (input.connectionError) {
-      return translate('docs.collabRuntime.readonlyWithError', { error: input.connectionError })
-    }
-
-    return input.status === 'error'
-      ? translate('docs.collabRuntime.readonlyError')
-      : translate('docs.collabRuntime.readonlyDisconnected')
-  }
-
-  if (input.status === 'error' && input.connectionError) {
-    return input.connectionError
-  }
-
-  if (input.status === 'disconnected') {
-    return translate('docs.collabRuntime.disconnectedHint')
-  }
-
-  return null
 }

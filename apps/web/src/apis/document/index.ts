@@ -1,7 +1,6 @@
 import type {
   BatchDeleteDocumentsRequest,
   BatchDeleteDocumentsResponse,
-  CreateCollabTicketResponse,
   CreateDocumentDuplicateOperationResponse,
   CreateDocumentMoveOperationResponse,
   CreateDocumentRequest,
@@ -18,17 +17,20 @@ import type {
   MoveDocumentTreeOperationRequest,
   PatchDocumentLayoutRequest,
   PatchDocumentMetaRequest,
-  PatchDocumentTitleRequest,
   ReadableDocumentSearchResult,
   ResolveDocumentAssetsRequest,
   ResolveDocumentAssetsResponse,
   RestoreDocumentVersionSnapshotRequest,
   RestoreDocumentVersionSnapshotResponse,
+  SaveDocumentContentRequest,
+  SaveDocumentContentResponse,
   SearchReadableDocumentsResponse,
 } from './typing'
 import { axios } from '@/utils/axios'
 
 export * from './typing'
+
+const DOCUMENT_CONTENT_SAVE_TIMEOUT_MS = 30_000
 
 export function getDocuments(workspaceId: string): Promise<DocumentTreeGroup[]> {
   return axios.request({
@@ -108,6 +110,18 @@ export function getDocumentCurrent(id: string): Promise<DocumentCurrent> {
   })
 }
 
+export function saveDocumentContent(
+  id: string,
+  data: SaveDocumentContentRequest,
+): Promise<SaveDocumentContentResponse> {
+  return axios.request({
+    method: 'put',
+    url: `/documents/${id}/content`,
+    data,
+    timeout: DOCUMENT_CONTENT_SAVE_TIMEOUT_MS,
+  })
+}
+
 export function createDocumentVersionSnapshot(
   id: string,
   data: CreateDocumentVersionSnapshotRequest,
@@ -116,13 +130,6 @@ export function createDocumentVersionSnapshot(
     method: 'post',
     url: `/documents/${id}/version-snapshots`,
     data,
-  })
-}
-
-export function createDocumentCollabTicket(id: string): Promise<CreateCollabTicketResponse> {
-  return axios.request({
-    method: 'post',
-    url: `/documents/${id}/collab-ticket`,
   })
 }
 
@@ -155,14 +162,6 @@ export function patchDocumentMeta(id: string, data: PatchDocumentMetaRequest): P
   return axios.request({
     method: 'patch',
     url: `/documents/${id}/meta`,
-    data,
-  })
-}
-
-export function patchDocumentTitle(id: string, data: PatchDocumentTitleRequest): Promise<DocumentCurrent> {
-  return axios.request({
-    method: 'patch',
-    url: `/documents/${id}/title`,
     data,
   })
 }

@@ -4,17 +4,18 @@ import type {
   DocumentCurrent,
   DocumentHistory,
   DocumentVersionSnapshot,
-  PatchDocumentTitleRequest,
   RestoreDocumentVersionSnapshotRequest,
   RestoreDocumentVersionSnapshotResponse,
+  SaveDocumentContentRequest,
+  SaveDocumentContentResponse,
 } from '@haohaoxue/lexora-contracts'
 import type { AuthUserContext } from '../../auth/auth.interface'
 import {
   CreateDocumentVersionSnapshotSchema,
-  PatchDocumentTitleSchema,
   RestoreDocumentVersionSnapshotSchema,
+  SaveDocumentContentSchema,
 } from '@haohaoxue/lexora-contracts'
-import { Body, Controller, Get, Param, Patch, Post } from '@nestjs/common'
+import { Body, Controller, Get, Param, Post, Put } from '@nestjs/common'
 import { CurrentUser } from '../../../decorators/current-user.decorator'
 import { ZodValidationPipe } from '../../../pipes/zod-validation.pipe'
 import { DocumentContentService } from './content.service'
@@ -31,13 +32,13 @@ export class DocumentContentController {
     return this.documentContentService.getDocumentCurrent(authUser.id, id)
   }
 
-  @Patch(':id/title')
-  async patchDocumentTitle(
+  @Put(':id/content')
+  async saveDocumentContent(
     @CurrentUser() authUser: AuthUserContext,
     @Param('id') id: string,
-    @Body(new ZodValidationPipe(PatchDocumentTitleSchema)) payload: PatchDocumentTitleRequest,
-  ): Promise<DocumentCurrent> {
-    return this.documentContentService.patchDocumentTitle(authUser.id, id, payload)
+    @Body(new ZodValidationPipe(SaveDocumentContentSchema)) payload: SaveDocumentContentRequest,
+  ): Promise<SaveDocumentContentResponse> {
+    return this.documentContentService.saveDocumentContent(authUser.id, id, payload)
   }
 
   @Post(':id/version-snapshots')

@@ -200,7 +200,7 @@ export const DOCUMENT_PUBLICATION_SITE_CUSTOM_MEDIA_MAX_BYTES_BY_SCOPE = {
 export const DOCUMENT_PUBLICATION_DEFAULT_SITE_HOME_CONFIG = {
   hero: {
     name: 'Lexora',
-    text: 'AI 与协作',
+    text: 'AI 与创作',
     tagline: null,
     imageUrl: null,
   },

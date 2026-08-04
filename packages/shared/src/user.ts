@@ -3,7 +3,6 @@ import type {
   LanguagePreference,
   ResolvedAppearancePreference,
   ResolvedLanguagePreference,
-  UserCollabIdentity,
 } from '@haohaoxue/lexora-contracts'
 import { USER_CODE_REGEX } from '@haohaoxue/lexora-contracts/identity/constants'
 import {
@@ -67,16 +66,4 @@ function isEnglishLanguage(value: string): boolean {
 
 export function isExactUserCodeQuery(value: string): boolean {
   return USER_CODE_REGEX.test(value.trim())
-}
-
-export function resolveCollabIdentityDisambiguator(
-  identity: Pick<UserCollabIdentity, 'email' | 'userCode'>,
-): string {
-  return identity.email?.trim() || identity.userCode
-}
-
-export function formatCollabIdentityLabel(
-  identity: Pick<UserCollabIdentity, 'displayName' | 'email' | 'userCode'>,
-): string {
-  return `${identity.displayName} · ${resolveCollabIdentityDisambiguator(identity)}`
 }

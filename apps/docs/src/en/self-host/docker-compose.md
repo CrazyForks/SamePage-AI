@@ -7,11 +7,10 @@ Lexora recommends Docker Compose for self-hosted deployment.
 Production deployment includes:
 
 - `postgres`: PostgreSQL database.
-- `redis`: runtime events, queues, locks, and collaboration invalidation messages.
+- `redis`: Agent runtime events, queues, locks, and background task coordination.
 - `rustfs`: S3-compatible object storage for images and attachments.
 - `migrate`: runs Prisma migrations before the API starts.
 - `api`: NestJS API service for product semantics, permissions, audit, and internal APIs.
-- `collab`: Hocuspocus / Yjs collaboration service for real-time document connections.
 - `agent`: LangGraph / LangChain AI runtime service.
 - `web`: static frontend and reverse proxy entry.
 
@@ -35,7 +34,7 @@ At minimum, configure:
 From the repository root:
 
 ```bash
-docker compose -f infrastructure/compose.prod.yml --env-file infrastructure/.env up -d
+docker compose -f infrastructure/compose.prod.yml --env-file infrastructure/.env up -d --remove-orphans
 ```
 
 If you deploy from another directory, make sure compose and `.env` paths match.
@@ -48,7 +47,7 @@ Check container status:
 docker compose -f infrastructure/compose.prod.yml ps
 ```
 
-`api`, `collab`, `agent`, and `web` should become healthy. On first start, `migrate` exits after database migration completes.
+`api`, `agent`, and `web` should become healthy. On first start, `migrate` exits after database migration completes.
 
 ## Access
 

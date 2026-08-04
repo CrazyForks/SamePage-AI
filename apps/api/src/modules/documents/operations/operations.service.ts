@@ -5,7 +5,6 @@ import type {
 } from '@haohaoxue/lexora-contracts'
 import { randomUUID } from 'node:crypto'
 import {
-  COLLAB_PERMISSION_INVALIDATION_REASON,
   DOCUMENT_OPERATION_JOB_STATUS,
   DOCUMENT_OPERATION_JOB_TYPE,
   DOCUMENT_VERSION_SNAPSHOT_SOURCE,
@@ -16,7 +15,6 @@ import {
 import {
   collectDocumentAssetIds,
   createDocumentTitleContent,
-  createTiptapDocumentCollaborationCheckpointState,
   getDocumentTitlePlainText,
   resolveRootDocumentVisibility,
   rewriteDocumentAssetIds,
@@ -37,7 +35,6 @@ import {
   DocumentVisibility as PrismaDocumentVisibility,
 } from '@prisma/client'
 import { PrismaService } from '../../../database/prisma.service'
-import { CollabPermissionInvalidationPublisherService } from '../../../infrastructure/publisher/collab-permission-invalidation-publisher.service'
 import { StorageService } from '../../../infrastructure/storage/storage.service'
 import { DocumentAccessService } from '../core/access.service'
 import { DocumentOperationQueueService } from './operation-queue.service'
@@ -67,10 +64,6 @@ const documentOperationCurrentProjectionSelect = {
   id: true,
   documentId: true,
   projectionRevision: true,
-  runtimeEpoch: true,
-  projectedUpdateSeq: true,
-  checkpointSeq: true,
-  checkpointUpdateSeq: true,
   schemaVersion: true,
   title: true,
   body: true,
@@ -164,7 +157,6 @@ export class DocumentOperationsService {
     private readonly documentAccessService: DocumentAccessService,
     private readonly storageService: StorageService,
     private readonly queueService: DocumentOperationQueueService,
-    private readonly collabPermissionInvalidationPublisher: CollabPermissionInvalidationPublisherService,
   ) {}
 
   async createDuplicateDocumentTreeJob(userId: string, documentId: string): Promise<DocumentOperationJob> {
@@ -503,7 +495,7 @@ export class DocumentOperationsService {
         : await this.resolveAppendOrder(tx, target)
 
       if (isCrossWorkspaceMove) {
-        await this.clearDocumentTreeExternalAccess(tx, {
+        await this.clearDocumentTreePublications(tx, {
           documentIds: subtreeIds,
           userId: job.createdBy,
         })
@@ -536,11 +528,6 @@ export class DocumentOperationsService {
           },
         })
       }
-    })
-
-    await this.publishMoveInvalidations({
-      documentIds: subtreeIds,
-      shouldInvalidateDocumentConnections: isCrossWorkspaceMove || rootDocument.visibility !== target.visibility,
     })
 
     return {
@@ -585,18 +572,10 @@ export class DocumentOperationsService {
       })
     }
 
-    const checkpointState = createTiptapDocumentCollaborationCheckpointState({
-      title: input.title,
-      body: input.body,
-    })
     const projection = await tx.documentCurrentProjection.create({
       data: {
         documentId: input.documentId,
         projectionRevision: 1,
-        runtimeEpoch: 1,
-        projectedUpdateSeq: 0,
-        checkpointSeq: 1,
-        checkpointUpdateSeq: 0,
         schemaVersion: TIPTAP_SCHEMA_VERSION,
         title: toPrismaJsonValue(input.title),
         body: toPrismaJsonValue(input.body),
@@ -611,10 +590,6 @@ export class DocumentOperationsService {
         version: 1,
         basedOnProjectionId: projection.id,
         basedOnProjectionRevision: 1,
-        runtimeEpoch: 1,
-        projectedUpdateSeq: 0,
-        checkpointSeq: 1,
-        checkpointUpdateSeq: 0,
         schemaVersion: TIPTAP_SCHEMA_VERSION,
         title: toPrismaJsonValue(input.title),
         body: toPrismaJsonValue(input.body),
@@ -623,19 +598,6 @@ export class DocumentOperationsService {
       },
       select: {
         id: true,
-      },
-    })
-
-    await tx.documentYdoc.create({
-      data: {
-        documentId: input.documentId,
-        checkpointState: new Uint8Array(checkpointState),
-        checkpointSeq: 1,
-        checkpointUpdateSeq: 0,
-        updateSeq: 0,
-        lastProjectedProjectionId: projection.id,
-        lastProjectedProjectionRevision: 1,
-        lastProjectedAt: new Date(),
       },
     })
 
@@ -884,52 +846,13 @@ export class DocumentOperationsService {
     })
   }
 
-  private async clearDocumentTreeExternalAccess(
+  private async clearDocumentTreePublications(
     tx: Prisma.TransactionClient,
     input: {
       documentIds: string[]
       userId: string
     },
   ): Promise<void> {
-    await tx.documentCollaborationGrant.updateMany({
-      where: {
-        rootDocumentId: {
-          in: input.documentIds,
-        },
-        status: 'ACTIVE',
-      },
-      data: {
-        status: 'REMOVED',
-        updatedBy: input.userId,
-      },
-    })
-
-    await tx.documentCollaborationUserInvite.updateMany({
-      where: {
-        rootDocumentId: {
-          in: input.documentIds,
-        },
-        status: 'PENDING',
-      },
-      data: {
-        status: 'CANCELED',
-        updatedBy: input.userId,
-      },
-    })
-
-    await tx.documentCollaborationLinkInvite.updateMany({
-      where: {
-        rootDocumentId: {
-          in: input.documentIds,
-        },
-        enabled: true,
-      },
-      data: {
-        enabled: false,
-        updatedBy: input.userId,
-      },
-    })
-
     await tx.documentSinglePublicationSetting.updateMany({
       where: {
         documentId: {
@@ -966,20 +889,6 @@ export class DocumentOperationsService {
         updatedBy: input.userId,
       },
     })
-  }
-
-  private async publishMoveInvalidations(input: {
-    documentIds: string[]
-    shouldInvalidateDocumentConnections: boolean
-  }): Promise<void> {
-    await this.collabPermissionInvalidationPublisher.publishPermissionInvalidations([
-      ...(input.shouldInvalidateDocumentConnections
-        ? input.documentIds.map(documentId => ({
-            reason: COLLAB_PERMISSION_INVALIDATION_REASON.DOCUMENT_MOVED,
-            documentId,
-          }))
-        : []),
-    ])
   }
 
   private async enqueueOrFail(jobId: string): Promise<void> {

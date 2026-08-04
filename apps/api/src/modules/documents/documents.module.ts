@@ -1,24 +1,16 @@
 import { Module } from '@nestjs/common'
-import { PublisherModule } from '../../infrastructure/publisher/publisher.module'
 import { RedisModule } from '../../infrastructure/redis/redis.module'
 import { StorageModule } from '../../infrastructure/storage/storage.module'
 
 // asset
 import { DocumentAssetController } from './asset/asset.controller'
 import { DocumentAssetsService } from './asset/asset.service'
-import { DocumentCollabInternalController } from './asset/collab-internal.controller'
-import { DocumentCollabTicketsService } from './asset/collab-ticket.service'
-
-// collaboration
-import { DocumentCollaborationResolverController, DocumentCollaborationsController } from './collaboration/collaborations.controller'
-import { DocumentCollaborationsService } from './collaboration/collaborations.service'
 // content
 import { DocumentContentController } from './content/content.controller'
 import { DocumentContentService } from './content/content.service'
 
 import { DocumentChatSnapshotService } from './content/document-chat-snapshot.service'
 
-import { DocumentYdocsService } from './content/ydocs.service'
 // core (cross-subdomain)
 import { DocumentAccessService } from './core/access.service'
 
@@ -42,29 +34,22 @@ import { DocumentTreeController } from './tree/tree.controller'
 import { DocumentsService } from './tree/tree.service'
 
 @Module({
-  imports: [StorageModule, PublisherModule, RedisModule],
+  imports: [StorageModule, RedisModule],
   controllers: [
     // 入站：自有文档
     DocumentTreeController,
     DocumentContentController,
     DocumentTrashController,
     DocumentAssetController,
-    DocumentCollaborationsController,
-    DocumentCollaborationResolverController,
     DocumentPublicationsController,
     DocumentOperationsController,
-    // 入站：内部 collab 服务调用
-    DocumentCollabInternalController,
   ],
   providers: [
     DocumentAccessService,
     DocumentsService,
     DocumentContentService,
     DocumentChatSnapshotService,
-    DocumentYdocsService,
     DocumentAssetsService,
-    DocumentCollabTicketsService,
-    DocumentCollaborationsService,
     DocumentPublicationAccessService,
     DocumentPublicationsService,
     DocumentTrashService,
@@ -77,7 +62,6 @@ import { DocumentsService } from './tree/tree.service'
     DocumentChatSnapshotService,
     DocumentContentService,
     DocumentsService,
-    DocumentCollaborationsService,
     DocumentPublicationAccessService,
     DocumentPublicationsService,
   ],

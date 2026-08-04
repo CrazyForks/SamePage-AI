@@ -104,7 +104,7 @@ model AgentSkillCredential {
 }
 
 model AgentMemory {
-  id                 String                 @id @default(uuid())
+  id                 String                  @id @default(uuid())
   scope              AgentMemoryScope
   lane               AgentMemoryLane
   ownerUserId        String
@@ -114,23 +114,23 @@ model AgentMemory {
   slotValue          String?
   content            String
   summary            String?
-  sensitivity        AgentMemorySensitivity @default(NORMAL)
-  confidence         Float                  @default(1)
-  sourceType         AgentMemorySourceType  @default(MANUAL)
+  sensitivity        AgentMemorySensitivity  @default(NORMAL)
+  confidence         Float                   @default(1)
+  sourceType         AgentMemorySourceType   @default(MANUAL)
   sourceSessionId    String?
   sourceMessageId    String?
   sourceGenerationId String?
-  status             AgentMemoryStatus      @default(ACTIVE)
+  status             AgentMemoryStatus       @default(ACTIVE)
   supersedesMemoryId String?
   createdByUserId    String
   acceptedByUserId   String?
   lastUsedAt         DateTime?
   expiresAt          DateTime?
-  ownerUser          User                   @relation("AgentMemoryOwner", fields: [ownerUserId], references: [id], onDelete: Cascade)
-  agentProfile       AgentProfile?          @relation(fields: [agentProfileId], references: [id], onDelete: SetNull)
+  ownerUser          User                    @relation("AgentMemoryOwner", fields: [ownerUserId], references: [id], onDelete: Cascade)
+  agentProfile       AgentProfile?           @relation(fields: [agentProfileId], references: [id], onDelete: SetNull)
   searchIndex        AgentMemorySearchIndex?
-  createdAt          DateTime               @default(now())
-  updatedAt          DateTime               @updatedAt
+  createdAt          DateTime                @default(now())
+  updatedAt          DateTime                @updatedAt
   deletedAt          DateTime?
 
   @@index([ownerUserId, scope, lane, status])
@@ -182,8 +182,8 @@ model AgentMemoryCandidate {
 }
 
 model AgentMemorySearchIndex {
-  id                        String             @id @default(uuid())
-  memoryId                  String             @unique
+  id                        String                 @id @default(uuid())
+  memoryId                  String                 @unique
   scope                     AgentMemoryScope
   lane                      AgentMemoryLane
   ownerUserId               String
@@ -195,10 +195,10 @@ model AgentMemorySearchIndex {
   embeddingModelProviderKey String?
   embeddingModelId          String?
   embeddingDimensions       Int?
-  memory                    AgentMemory        @relation(fields: [memoryId], references: [id], onDelete: Cascade)
-  indexedAt                 DateTime           @default(now())
-  createdAt                 DateTime           @default(now())
-  updatedAt                 DateTime           @updatedAt
+  memory                    AgentMemory            @relation(fields: [memoryId], references: [id], onDelete: Cascade)
+  indexedAt                 DateTime               @default(now())
+  createdAt                 DateTime               @default(now())
+  updatedAt                 DateTime               @updatedAt
 
   @@index([ownerUserId, scope, lane])
   @@index([agentProfileId])

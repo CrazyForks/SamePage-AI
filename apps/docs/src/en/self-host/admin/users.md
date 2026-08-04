@@ -8,7 +8,7 @@ The admin user page displays instance users. Administrators can filter by keywor
 
 ## User Identity
 
-Lexora uses a global `User` identity. Collaboration invites use user codes instead of public usernames.
+Lexora uses a global `User` identity and assigns each account a stable user code. User codes can support administration, audit, and team invitations without public usernames.
 
 Display names are editable and must not be treated as unique identity credentials.
 

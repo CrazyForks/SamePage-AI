@@ -1,12 +1,4 @@
 <script setup lang="ts">
-import type {
-  DocumentCollaborationPermission,
-  DocumentCollaborationScope,
-} from '@haohaoxue/lexora-contracts'
-import {
-  DOCUMENT_COLLABORATION_PERMISSION,
-  DOCUMENT_COLLABORATION_SCOPE,
-} from '@haohaoxue/lexora-contracts/document/collaboration/constants'
 import { useI18n } from 'vue-i18n'
 import CopyStateIcon from '@/components/copy-state-icon/CopyStateIcon.vue'
 import EntityAvatar from '@/components/entity-avatar'
@@ -41,21 +33,13 @@ const {
   hasMoreNotifications,
   hasUnreadNotifications,
   unreadNotificationCount,
-  actingInvitationId,
-  actingInvitationAction,
-  selectedInvitation,
-  isDetailDialogOpen,
   copiedUserCode,
   toggleAppearanceMenu,
   toggleNotificationPanel,
   handleCopyUserCode,
-  handleViewInvitation,
-  handleAcceptInvitation,
-  handleDeclineInvitation,
   handleNotificationFilterChange,
   handleLoadMoreNotifications,
   handleMarkAllNotificationsRead,
-  closeInvitationDetail,
   handleAppearanceSelect,
   switchContext,
   handleLogout,
@@ -64,24 +48,6 @@ const {
   showContextSwitch: props.showContextSwitch,
 })
 const { t } = useI18n({ useScope: 'global' })
-
-const permissionLabelKey = {
-  [DOCUMENT_COLLABORATION_PERMISSION.READ]: 'collaboration.permission.read',
-  [DOCUMENT_COLLABORATION_PERMISSION.EDIT]: 'collaboration.permission.edit',
-} as const satisfies Record<DocumentCollaborationPermission, string>
-
-const scopeLabelKey = {
-  [DOCUMENT_COLLABORATION_SCOPE.SELF]: 'collaboration.scope.self',
-  [DOCUMENT_COLLABORATION_SCOPE.DESCENDANTS]: 'collaboration.scope.descendants',
-} as const satisfies Record<DocumentCollaborationScope, string>
-
-function getPermissionLabel(permission: DocumentCollaborationPermission) {
-  return t(permissionLabelKey[permission])
-}
-
-function getScopeLabel(scope: DocumentCollaborationScope) {
-  return t(scopeLabelKey[scope])
-}
 </script>
 
 <template>
@@ -168,7 +134,7 @@ function getScopeLabel(scope: DocumentCollaborationScope) {
         >
           <span class="session-user-menu-row__content flex h-full w-full items-center gap-2.25 text-left">
             <span class="session-user-menu-row__summary min-w-0 flex-1">
-              <span class="session-user-menu-row__title block text-[11px] leading-[0.9375rem] text-secondary">{{ t('sessionMenu.collaborationCode.title') }}</span>
+              <span class="session-user-menu-row__title block text-[11px] leading-[0.9375rem] text-secondary">{{ t('sessionMenu.accountCode.title') }}</span>
               <strong class="block truncate pt-[0.125rem] text-[12px] leading-4 text-main font-medium">{{ currentUser.userCode }}</strong>
             </span>
 
@@ -267,14 +233,9 @@ function getScopeLabel(scope: DocumentCollaborationScope) {
             :notification-items="notificationItems"
             :unread-count="unreadNotificationCount"
             :has-more="hasMoreNotifications"
-            :acting-invitation-id="actingInvitationId"
-            :acting-invitation-action="actingInvitationAction"
             @filter-change="handleNotificationFilterChange"
             @mark-all-read="handleMarkAllNotificationsRead"
             @load-more="handleLoadMoreNotifications"
-            @view="handleViewInvitation"
-            @accept="handleAcceptInvitation"
-            @decline="handleDeclineInvitation"
           />
         </div>
 
@@ -299,61 +260,6 @@ function getScopeLabel(scope: DocumentCollaborationScope) {
         </ElButton>
       </div>
     </ElPopover>
-
-    <ElDialog
-      :model-value="isDetailDialogOpen"
-      :title="t('sessionMenu.invitation.title')"
-      width="420px"
-      append-to-body
-      @update:model-value="(visible: boolean) => !visible && closeInvitationDetail()"
-    >
-      <div v-if="selectedInvitation" class="session-user-invitation-detail space-y-4">
-        <div>
-          <h3 class="m-0 text-lg font-semibold leading-7 text-main">
-            {{ selectedInvitation.documentTitle }}
-          </h3>
-          <p class="m-0 mt-1 text-sm leading-6 text-secondary">
-            {{ t('sessionMenu.invitation.invitedDocument', { inviter: selectedInvitation.inviterLabel }) }}
-          </p>
-        </div>
-
-        <ElDescriptions :column="1" border>
-          <ElDescriptionsItem :label="t('sessionMenu.invitation.permission')">
-            {{ getPermissionLabel(selectedInvitation.permission) }}
-          </ElDescriptionsItem>
-          <ElDescriptionsItem :label="t('sessionMenu.invitation.scope')">
-            {{ getScopeLabel(selectedInvitation.scope) }}
-          </ElDescriptionsItem>
-          <ElDescriptionsItem :label="t('sessionMenu.invitation.sentAt')">
-            {{ selectedInvitation.receivedLabel }}
-          </ElDescriptionsItem>
-        </ElDescriptions>
-      </div>
-
-      <template #footer>
-        <ElButton :disabled="Boolean(actingInvitationId)" @click="closeInvitationDetail">
-          {{ t('sessionMenu.invitation.later') }}
-        </ElButton>
-        <ElButton
-          v-if="selectedInvitation"
-          plain
-          :disabled="Boolean(actingInvitationId)"
-          :loading="actingInvitationId === selectedInvitation.id && actingInvitationAction === 'decline'"
-          @click="handleDeclineInvitation(selectedInvitation)"
-        >
-          {{ t('sessionMenu.invitation.decline') }}
-        </ElButton>
-        <ElButton
-          v-if="selectedInvitation"
-          type="primary"
-          :disabled="Boolean(actingInvitationId)"
-          :loading="actingInvitationId === selectedInvitation.id && actingInvitationAction === 'accept'"
-          @click="handleAcceptInvitation(selectedInvitation)"
-        >
-          {{ t('sessionMenu.invitation.acceptAndOpen') }}
-        </ElButton>
-      </template>
-    </ElDialog>
   </div>
 </template>
 

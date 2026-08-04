@@ -5,9 +5,7 @@ import { getBlockTriggerViewState } from '../catalog/menuRegistry'
 import { useEditorSnapshot } from '../shared/useEditorSnapshot'
 
 export function useBlockTriggerState(editor: Editor, options: BlockTriggerViewStateOptions = {}) {
-  const editorSnapshot = useEditorSnapshot(editor, {
-    ignoreCollaborationOrigin: true,
-  })
+  const editorSnapshot = useEditorSnapshot(editor)
 
   return computed(() => {
     void editorSnapshot.value

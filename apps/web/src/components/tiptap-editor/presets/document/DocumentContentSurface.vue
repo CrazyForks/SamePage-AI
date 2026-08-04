@@ -11,8 +11,6 @@ import DocumentTitleEditor from '../title/DocumentTitleEditor.vue'
 const props = withDefaults(defineProps<DocumentContentSurfaceProps>(), {
   documentId: null,
   editable: true,
-  titleCollaboration: null,
-  bodyCollaboration: null,
   activeBlockId: null,
   bodyAiDraftPreview: null,
   bodyAiBlockRewriteEnabled: false,
@@ -22,48 +20,13 @@ const props = withDefaults(defineProps<DocumentContentSurfaceProps>(), {
 })
 const emits = defineEmits<DocumentContentSurfaceEmits>()
 
-const bindingObjectIds = new WeakMap<object, number>()
-let bindingObjectSequence = 0
-
-const titleEditorKey = computed(() =>
-  `${props.documentId ?? 'document'}:title:${resolveBindingKey(props.titleCollaboration)}`,
-)
-const bodyEditorKey = computed(() =>
-  `${props.documentId ?? 'document'}:body:${resolveBindingKey(props.bodyCollaboration)}`,
-)
+const titleEditorKey = computed(() => `${props.documentId ?? 'document'}:title`)
+const bodyEditorKey = computed(() => `${props.documentId ?? 'document'}:body`)
 const pageWidthClass = computed(() => ({
   [DOCUMENT_PAGE_WIDTH_MODE.NARROW]: 'is-page-width-narrow',
   [DOCUMENT_PAGE_WIDTH_MODE.DEFAULT]: 'is-page-width-default',
   [DOCUMENT_PAGE_WIDTH_MODE.FULL]: 'is-page-width-full',
 })[props.pageWidthMode])
-
-function resolveBindingKey(binding: DocumentContentSurfaceProps['titleCollaboration']) {
-  if (!binding) {
-    return 'plain'
-  }
-
-  return [
-    resolveObjectKey(binding.document),
-    binding.field,
-    resolveObjectKey(binding.provider ?? null),
-  ].join(':')
-}
-
-function resolveObjectKey(value: object | null) {
-  if (!value) {
-    return 'none'
-  }
-
-  const currentId = bindingObjectIds.get(value)
-
-  if (currentId) {
-    return String(currentId)
-  }
-
-  bindingObjectSequence += 1
-  bindingObjectIds.set(value, bindingObjectSequence)
-  return String(bindingObjectSequence)
-}
 </script>
 
 <template>
@@ -74,7 +37,6 @@ function resolveObjectKey(value: object | null) {
         class="document-content-surface__title-editor"
         :title="props.title"
         :autofocus="props.autofocusTitle"
-        :collaboration="props.titleCollaboration"
         :editable="props.editable"
         @update:title="emits('updateTitle', $event)"
         @autofocus-applied="emits('titleAutofocusApplied')"
@@ -87,7 +49,6 @@ function resolveObjectKey(value: object | null) {
         class="document-content-surface__body-editor"
         :document-id="props.documentId"
         :content="props.body"
-        :collaboration="props.bodyCollaboration"
         :active-block-id="props.activeBlockId"
         :ai-draft-preview="props.bodyAiDraftPreview"
         :ai-block-rewrite-enabled="props.bodyAiBlockRewriteEnabled"

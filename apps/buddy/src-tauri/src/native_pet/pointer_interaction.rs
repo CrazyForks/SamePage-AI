@@ -88,55 +88,50 @@ mod tests {
     }
 
     #[test]
-    fn ignores_stale_open_chat_candidate() {
+    fn ignores_invalid_open_chat_candidates() {
         let previous = NativePetOpenChatClick {
             time_ms: 1_000,
             position: NativePetLogicalPoint::new(80.0, 120.0),
         };
+        let cases = [
+            (
+                "stale click",
+                Some(previous),
+                1_800,
+                NativePetLogicalPoint::new(82.0, 121.0),
+            ),
+            (
+                "distant click",
+                Some(previous),
+                1_220,
+                NativePetLogicalPoint::new(140.0, 120.0),
+            ),
+            (
+                "missing previous click",
+                None,
+                1_220,
+                NativePetLogicalPoint::new(80.0, 120.0),
+            ),
+        ];
 
-        assert!(!native_pet_open_chat_click_matches(
-            Some(previous),
-            1_800,
-            NativePetLogicalPoint::new(82.0, 121.0),
-        ));
+        for (label, previous, current_time_ms, current_position) in cases {
+            assert!(
+                !native_pet_open_chat_click_matches(previous, current_time_ms, current_position),
+                "candidate should be ignored: {label}"
+            );
+        }
     }
 
     #[test]
-    fn ignores_distant_open_chat_candidate() {
-        let previous = NativePetOpenChatClick {
-            time_ms: 1_000,
-            position: NativePetLogicalPoint::new(80.0, 120.0),
-        };
+    fn maps_pointer_press_state_to_open_chat_eligibility() {
+        let cases = [(true, 1, true), (false, 1, false), (true, 3, false)];
 
-        assert!(!native_pet_open_chat_click_matches(
-            Some(previous),
-            1_220,
-            NativePetLogicalPoint::new(140.0, 120.0),
-        ));
-    }
-
-    #[test]
-    fn ignores_missing_open_chat_candidate() {
-        assert!(!native_pet_open_chat_click_matches(
-            None,
-            1_220,
-            NativePetLogicalPoint::new(80.0, 120.0),
-        ));
-    }
-
-    #[test]
-    fn allows_primary_pointer_press_on_visible_pet_for_open_chat_candidate() {
-        assert!(native_pet_pointer_press_can_open_chat(true, 1));
-    }
-
-    #[test]
-    fn ignores_transparent_pointer_press_for_open_chat_candidate() {
-        assert!(!native_pet_pointer_press_can_open_chat(false, 1));
-    }
-
-    #[test]
-    fn ignores_secondary_pointer_press_for_open_chat_candidate() {
-        assert!(!native_pet_pointer_press_can_open_chat(true, 3));
+        for (pointer_hits_visible_pet, button, expected) in cases {
+            assert_eq!(
+                native_pet_pointer_press_can_open_chat(pointer_hits_visible_pet, button),
+                expected
+            );
+        }
     }
 
     #[test]
@@ -188,23 +183,18 @@ mod tests {
     }
 
     #[test]
-    fn starts_pointer_interaction_only_on_visible_pet_pixels() {
-        assert!(native_pet_should_start_pointer_interaction(true));
-        assert!(!native_pet_should_start_pointer_interaction(false));
-    }
+    fn maps_pointer_hit_and_drag_state_to_cursor_feedback() {
+        let cases = [
+            (false, false, None),
+            (true, false, Some("grab")),
+            (true, true, Some("grabbing")),
+        ];
 
-    #[test]
-    fn clears_pointer_cursor_when_pet_is_not_hit() {
-        assert_eq!(native_pet_pointer_cursor_name(false, false), None);
-    }
-
-    #[test]
-    fn maps_pointer_hit_state_to_grab_cursor_feedback() {
-        assert_eq!(native_pet_pointer_cursor_name(true, false), Some("grab"));
-    }
-
-    #[test]
-    fn maps_drag_state_to_grabbing_cursor_feedback() {
-        assert_eq!(native_pet_pointer_cursor_name(true, true), Some("grabbing"));
+        for (pointer_hits_visible_pet, is_dragging, expected) in cases {
+            assert_eq!(
+                native_pet_pointer_cursor_name(pointer_hits_visible_pet, is_dragging),
+                expected
+            );
+        }
     }
 }

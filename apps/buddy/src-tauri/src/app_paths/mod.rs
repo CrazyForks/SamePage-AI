@@ -96,6 +96,10 @@ impl BuddyAppPaths {
         }
     }
 
+    pub fn from_default_buddy_home() -> Self {
+        Self::from_data_dir(resolve_default_buddy_home_for_headless())
+    }
+
     pub fn ensure_exists(&self) -> BuddyResult<()> {
         fs::create_dir_all(&self.data_dir)?;
         fs::create_dir_all(&self.attachments_dir)?;
@@ -148,6 +152,21 @@ impl BuddyAppPaths {
             database_path: path_to_string(&self.database_path),
         }
     }
+}
+
+#[cfg(target_os = "linux")]
+fn resolve_default_buddy_home_for_headless() -> PathBuf {
+    std::env::var_os("HOME")
+        .map(PathBuf::from)
+        .map(|home| home.join(".lexora").join("buddy"))
+        .unwrap_or_else(|| std::env::temp_dir().join(APP_DATA_DIR_NAME))
+}
+
+#[cfg(not(target_os = "linux"))]
+fn resolve_default_buddy_home_for_headless() -> PathBuf {
+    std::env::current_dir()
+        .unwrap_or_else(|_| std::env::temp_dir())
+        .join(APP_DATA_DIR_NAME)
 }
 
 fn path_to_string(path: &Path) -> String {

@@ -29,6 +29,10 @@ const srcinfoPath = join(packageDir, '.SRCINFO')
 const installPath = join(packageDir, 'lexora-buddy-bin.install')
 const pkgbuild = readFileSync(pkgbuildPath, 'utf8')
 const srcinfo = readFileSync(srcinfoPath, 'utf8')
+const nativePetManifest = JSON.parse(
+  readFileSync(join(repoRoot, 'packages/assets/buddy/pets/default/manifest.json'), 'utf8'),
+)
+const expectedNativePetAnimations = nativePetManifest.animations.map(animation => animation.name)
 const metadata = createLexoraBuddyReleaseMetadata({
   buddyVersionJson: readFileSync(join(repoRoot, 'apps/buddy/buddy.version.json'), 'utf8'),
   buddyPackageJson: readFileSync(join(repoRoot, 'apps/buddy/package.json'), 'utf8'),
@@ -155,32 +159,49 @@ function verifyMakepkgBuild() {
       stdio: 'inherit',
     })
 
-    verifyPackageBinaryHealthCheck(tempDir)
+    verifyPackageBinarySmokeChecks(tempDir)
   }
   finally {
     rmSync(tempDir, { force: true, recursive: true })
   }
 }
 
-function verifyPackageBinaryHealthCheck(tempDir) {
+function verifyPackageBinarySmokeChecks(tempDir) {
   const packageArchive = selectLexoraBuddyPackageArchive(readdirSync(tempDir), metadata)
   const extractDir = join(tempDir, 'pkg-root')
   const healthDataDir = join(tempDir, 'health-data')
+  const binaryPath = join(extractDir, 'usr/bin/lexora-buddy')
 
   mkdirSync(extractDir)
   run('bsdtar', ['-xf', join(tempDir, packageArchive), '-C', extractDir], {
     cwd: tempDir,
   })
-  const healthCheckOutput = runHealthCheck(join(extractDir, 'usr/bin/lexora-buddy'), [
+  const healthCheckOutput = runBinaryCheck(binaryPath, [
     '--buddy-health-check',
     '--buddy-health-check-data-dir',
     healthDataDir,
   ], tempDir)
 
   assertIncludes(healthCheckOutput, '"ok":true')
+  verifyNativePetSmokeOutput(runBinaryCheck(binaryPath, [
+    '--buddy-native-pet-smoke-check',
+  ], tempDir))
 }
 
-function runHealthCheck(command, args, cwd) {
+function verifyNativePetSmokeOutput(output) {
+  const report = JSON.parse(output)
+  if (report.ok !== true)
+    fail('native pet smoke did not return ok=true')
+  if (report.animationCount !== expectedNativePetAnimations.length) {
+    fail(`native pet animationCount 不匹配。包内: ${report.animationCount}，源码 manifest: ${expectedNativePetAnimations.length}`)
+  }
+  const actualAnimations = Array.isArray(report.validatedAnimations) ? report.validatedAnimations : []
+  const missingAnimations = expectedNativePetAnimations.filter(animation => !actualAnimations.includes(animation))
+  if (missingAnimations.length > 0)
+    fail(`native pet smoke 缺少源码 manifest 动画: ${missingAnimations.join(', ')}`)
+}
+
+function runBinaryCheck(command, args, cwd) {
   const result = spawnSync(command, args, {
     cwd,
     encoding: 'utf8',

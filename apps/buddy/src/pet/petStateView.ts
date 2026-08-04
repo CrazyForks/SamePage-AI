@@ -29,6 +29,7 @@ export function createBuddyPetStateView(options: {
   chatErrorMessage: string | null
   interaction?: BuddyInteractionSignal | null
   isSending: boolean
+  latestRunCompletedAt?: string | null
   latestRunStatus: BuddyRun['status'] | null
   lifecycle?: BuddyLifecycleSignal
   nowUnixMs?: number
@@ -49,6 +50,7 @@ export function createBuddyPetStateView(options: {
     nowUnixMs: options.nowUnixMs,
     task: {
       isSending: options.isSending,
+      latestRunCompletedAt: options.latestRunCompletedAt ?? null,
       latestRunStatus: options.latestRunStatus,
       pendingApprovalCount: options.pendingApprovalCount ?? 0,
     },
@@ -91,7 +93,7 @@ export function createBuddyPetStateView(options: {
     }
   }
 
-  if (options.latestRunStatus === 'completed') {
+  if (animation.reason === 'run_completed') {
     return {
       actionLabel: '查看结果',
       animation,
@@ -100,7 +102,7 @@ export function createBuddyPetStateView(options: {
     }
   }
 
-  if (options.latestRunStatus === 'cancelled') {
+  if (animation.reason === 'run_cancelled') {
     return {
       actionLabel: '查看运行',
       animation,

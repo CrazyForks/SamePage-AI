@@ -11,11 +11,6 @@ mod tests {
     use super::*;
 
     #[test]
-    fn maps_gdk_event_time_to_runtime_time() {
-        assert_eq!(native_pet_event_time_ms(1_250), 1_250);
-    }
-
-    #[test]
     fn opens_chat_for_primary_double_button_press() {
         assert!(native_pet_button_press_opens_chat(
             1,

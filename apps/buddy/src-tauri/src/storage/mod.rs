@@ -1,4 +1,7 @@
-use std::path::PathBuf;
+use std::{
+    path::PathBuf,
+    sync::{Arc, Mutex},
+};
 
 use crate::{
     domain::{
@@ -9,8 +12,10 @@ use crate::{
     local_log::LocalLogRuntime,
 };
 
+mod action_logs;
 mod approvals;
 mod attachments;
+mod choreography_pending_bodies;
 mod connection;
 mod conversations;
 mod lifecycle;
@@ -28,10 +33,21 @@ mod sessions;
 mod settings;
 mod tasks;
 
+pub(crate) use action_logs::{
+    action_log_source_ref_kind, action_log_source_ref_primary_id, ChoreographyActionLogIndexHealth,
+    RecoverableChoreographyPendingExecution,
+};
+pub use action_logs::{
+    ActionLogPlanDetail, ActionLogPlanList, ActionLogPlanListRequest,
+    ActionLogSystemEventQueryRequest, ActionLogSystemEventQueryResult,
+};
 pub use approvals::{
     BuddyApproval, CreateBuddyApprovalRequest, CODEX_APP_SERVER_REQUEST_APPROVAL_KIND,
 };
 pub use attachments::{BuddyRegisteredAttachment, CreateBuddyRegisteredAttachmentRequest};
+pub use choreography_pending_bodies::{
+    ChoreographyPendingExecutionBodyKind, UpsertChoreographyPendingExecutionBodyRequest,
+};
 pub use conversations::{BuddyConversation, CreateBuddyConversationRequest};
 pub use lifecycle::BuddyStorageStatus;
 pub use memory_candidates::{BuddyMemoryCandidate, CreateBuddyMemoryCandidateRequest};
@@ -56,8 +72,19 @@ pub use tasks::{BuddyReadOnlyTaskApprovalPlan, BuddyReadOnlyTaskDenial};
 
 #[derive(Clone)]
 pub struct BuddyStorage {
+    action_log_writer: Arc<Mutex<()>>,
     database_path: PathBuf,
     local_logs: LocalLogRuntime,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct ReplayableChoreographyPendingExecutionBody {
+    pub(crate) plan_id: String,
+    pub(crate) body_kind: ChoreographyPendingExecutionBodyKind,
+    pub(crate) schema_version: u16,
+    pub(crate) body: serde_json::Value,
+    pub(crate) stored_event_id: String,
+    pub(crate) stored_at: String,
 }
 
 #[derive(Clone, Debug, serde::Serialize)]

@@ -2,7 +2,7 @@ use rusqlite::Connection;
 
 use crate::error::BuddyResult;
 
-pub const CURRENT_SCHEMA_VERSION: i64 = 10;
+pub const CURRENT_SCHEMA_VERSION: i64 = 16;
 
 const CURRENT_SCHEMA: &str = r#"
 PRAGMA foreign_keys = ON;
@@ -208,6 +208,57 @@ CREATE TABLE IF NOT EXISTS memory_source_refs (
   CHECK(line_end >= line_start)
 );
 
+CREATE TABLE IF NOT EXISTS action_log_events (
+  event_id TEXT PRIMARY KEY,
+  schema_version INTEGER NOT NULL,
+  event_type TEXT NOT NULL,
+  status TEXT NOT NULL,
+  reason_code TEXT NOT NULL,
+  trigger_source TEXT NOT NULL,
+  plan_id TEXT,
+  step_id TEXT,
+  source_ref_kind TEXT NOT NULL,
+  source_ref_id TEXT,
+  result_kind TEXT NOT NULL DEFAULT 'normal',
+  source_ref_json TEXT NOT NULL,
+  payload_json TEXT NOT NULL,
+  created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS action_log_plan_summaries (
+  plan_id TEXT PRIMARY KEY,
+  source_ref_kind TEXT NOT NULL,
+  source_ref_id TEXT,
+  result_kind TEXT NOT NULL DEFAULT 'normal',
+  source_ref_json TEXT NOT NULL,
+  status TEXT NOT NULL,
+  started_at TEXT,
+  completed_at TEXT,
+  last_event_type TEXT NOT NULL,
+  last_reason_code TEXT NOT NULL,
+  detail_status TEXT NOT NULL DEFAULT 'running',
+  detail_reason_code TEXT NOT NULL DEFAULT 'unknown',
+  resolved_action_id TEXT,
+  resolved_animation_ref TEXT
+);
+
+CREATE TABLE IF NOT EXISTS action_log_index_watermarks (
+  source_file TEXT PRIMARY KEY,
+  byte_offset INTEGER NOT NULL CHECK (byte_offset >= 0),
+  line_number INTEGER NOT NULL CHECK (line_number >= 1),
+  event_id TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS choreography_pending_execution_bodies (
+  plan_id TEXT PRIMARY KEY,
+  body_kind TEXT NOT NULL CHECK (body_kind IN ('timeline', 'devFixture')),
+  schema_version INTEGER NOT NULL CHECK (schema_version >= 1),
+  body_json TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+  updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+);
+
 CREATE INDEX IF NOT EXISTS idx_messages_session_created_at ON messages(session_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_runs_session_started_at ON runs(session_id, started_at);
 CREATE INDEX IF NOT EXISTS idx_run_events_run_id_id ON run_events(run_id, id);
@@ -234,6 +285,21 @@ CREATE INDEX IF NOT EXISTS idx_memory_source_refs_source_event
   ON memory_source_refs(source_event_id);
 CREATE INDEX IF NOT EXISTS idx_memory_source_refs_source_run
   ON memory_source_refs(source_run_id);
+CREATE INDEX IF NOT EXISTS idx_action_log_events_plan_created
+  ON action_log_events(plan_id, created_at, event_id);
+CREATE INDEX IF NOT EXISTS idx_action_log_events_source
+  ON action_log_events(source_ref_kind, source_ref_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_action_log_events_system_created
+  ON action_log_events(created_at, event_id)
+  WHERE plan_id IS NULL;
+CREATE INDEX IF NOT EXISTS idx_action_log_plan_summaries_status
+  ON action_log_plan_summaries(status, started_at);
+CREATE INDEX IF NOT EXISTS idx_action_log_plan_summaries_source
+  ON action_log_plan_summaries(source_ref_kind, source_ref_id, started_at);
+CREATE INDEX IF NOT EXISTS idx_action_log_plan_summaries_result
+  ON action_log_plan_summaries(result_kind, started_at);
+CREATE INDEX IF NOT EXISTS idx_choreography_pending_execution_bodies_kind
+  ON choreography_pending_execution_bodies(body_kind, updated_at);
 "#;
 
 pub(super) fn apply_current_schema(connection: &Connection) -> BuddyResult<()> {

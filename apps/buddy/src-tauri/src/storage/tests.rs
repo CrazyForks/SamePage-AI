@@ -1,7 +1,15 @@
+use super::choreography_pending_bodies::ChoreographyPendingExecutionBody;
 use super::*;
+use crate::choreography::{
+    action_log::ActionLogEvent,
+    admission::{
+        ChoreographyAdmissionDecision, ChoreographyPlanPriority, ChoreographyTriggerSource,
+    },
+};
 use crate::domain::{
     BuddyApprovalTerminalStatus, BuddyRunEventType, BuddyRunStatus, BuddyRunTerminalStatus,
 };
+use crate::native_pet::step_protocol::SidecarInterruptPolicy;
 use rusqlite::Connection;
 
 #[test]
@@ -70,6 +78,591 @@ fn rejects_project_authorization_for_missing_directory() {
     assert!(error
         .to_string()
         .contains("project root must be an existing directory"));
+}
+
+#[test]
+fn stores_replaces_and_deletes_choreography_pending_execution_body() {
+    let storage = BuddyStorage::new_temporary_for_test().expect("create storage");
+    let plan_id = "plan_pending_body_storage_019f6000-0000-7000-8000-000000000001";
+    let timeline_body = serde_json::json!({
+        "schemaVersion": 1,
+        "plan": {
+            "planId": plan_id,
+            "steps": []
+        }
+    });
+
+    let stored = storage
+        .upsert_choreography_pending_execution_body(UpsertChoreographyPendingExecutionBodyRequest {
+            plan_id: plan_id.to_owned(),
+            body_kind: ChoreographyPendingExecutionBodyKind::Timeline,
+            schema_version: 1,
+            body: timeline_body.clone(),
+        })
+        .expect("store pending body");
+
+    assert_eq!(stored.plan_id, plan_id);
+    assert_eq!(
+        stored.body_kind,
+        ChoreographyPendingExecutionBodyKind::Timeline
+    );
+    assert_eq!(stored.schema_version, 1);
+    assert_eq!(stored.body, timeline_body);
+
+    let fixture_body = serde_json::json!({
+        "schemaVersion": 1,
+        "fixtureKind": "aiMacroDemo"
+    });
+    let replaced = storage
+        .upsert_choreography_pending_execution_body(UpsertChoreographyPendingExecutionBodyRequest {
+            plan_id: plan_id.to_owned(),
+            body_kind: ChoreographyPendingExecutionBodyKind::DevFixture,
+            schema_version: 1,
+            body: fixture_body.clone(),
+        })
+        .expect("replace pending body");
+
+    assert_eq!(
+        replaced.body_kind,
+        ChoreographyPendingExecutionBodyKind::DevFixture
+    );
+    assert_eq!(replaced.body, fixture_body);
+
+    let found: ChoreographyPendingExecutionBody = storage
+        .find_choreography_pending_execution_body(plan_id)
+        .expect("find pending body")
+        .expect("pending body exists");
+    assert_eq!(found, replaced);
+
+    assert!(storage
+        .delete_choreography_pending_execution_body(plan_id)
+        .expect("delete pending body"));
+    assert!(storage
+        .find_choreography_pending_execution_body(plan_id)
+        .expect("find after delete")
+        .is_none());
+    assert!(!storage
+        .delete_choreography_pending_execution_body(plan_id)
+        .expect("delete missing pending body"));
+}
+
+#[test]
+fn records_choreography_pending_execution_body_lifecycle_as_jsonl_facts() {
+    let storage = BuddyStorage::new_temporary_for_test().expect("create storage");
+    let plan_id = "plan_pending_body_fact_019f6000-0000-7000-8000-000000000011";
+    let timeline_body = serde_json::json!({
+        "schemaVersion": 1,
+        "plan": {
+            "planId": plan_id,
+            "steps": []
+        }
+    });
+    let fixture_body = serde_json::json!({
+        "schemaVersion": 1,
+        "fixtureKind": "singlePlayAction"
+    });
+
+    storage
+        .upsert_choreography_pending_execution_body(UpsertChoreographyPendingExecutionBodyRequest {
+            plan_id: plan_id.to_owned(),
+            body_kind: ChoreographyPendingExecutionBodyKind::Timeline,
+            schema_version: 1,
+            body: timeline_body.clone(),
+        })
+        .expect("store timeline pending body");
+    storage
+        .upsert_choreography_pending_execution_body(UpsertChoreographyPendingExecutionBodyRequest {
+            plan_id: plan_id.to_owned(),
+            body_kind: ChoreographyPendingExecutionBodyKind::DevFixture,
+            schema_version: 1,
+            body: fixture_body.clone(),
+        })
+        .expect("replace with dev fixture pending body");
+    assert!(storage
+        .delete_choreography_pending_execution_body(plan_id)
+        .expect("delete pending body"));
+    assert!(!storage
+        .delete_choreography_pending_execution_body(plan_id)
+        .expect("delete missing pending body"));
+
+    let system_events = storage
+        .query_action_log_system_events(ActionLogSystemEventQueryRequest {
+            source_ref_kind: Some("choreographyScheduler".to_owned()),
+            limit: Some(10),
+            ..ActionLogSystemEventQueryRequest::default()
+        })
+        .expect("query pending body system facts");
+    let event_types = system_events
+        .items
+        .iter()
+        .map(|event| event.event_type.as_str())
+        .collect::<Vec<_>>();
+    assert_eq!(
+        event_types,
+        vec![
+            "choreographyScheduler.pendingBodyDeleted",
+            "choreographyScheduler.pendingBodyStored",
+            "choreographyScheduler.pendingBodyStored",
+        ]
+    );
+
+    let jsonl_lines = storage.read_action_log_jsonl_lines_for_test();
+    assert_eq!(jsonl_lines.len(), 3);
+    let stored_timeline =
+        serde_json::from_str::<serde_json::Value>(&jsonl_lines[0]).expect("parse timeline fact");
+    let stored_dev_fixture =
+        serde_json::from_str::<serde_json::Value>(&jsonl_lines[1]).expect("parse fixture fact");
+    let deleted =
+        serde_json::from_str::<serde_json::Value>(&jsonl_lines[2]).expect("parse deleted fact");
+
+    assert_eq!(
+        stored_timeline.get("eventType"),
+        Some(&serde_json::json!(
+            "choreographyScheduler.pendingBodyStored"
+        ))
+    );
+    assert_eq!(
+        stored_timeline
+            .get("payload")
+            .and_then(|payload| payload.get("body")),
+        Some(&timeline_body)
+    );
+    assert_eq!(
+        stored_dev_fixture
+            .get("payload")
+            .and_then(|payload| payload.get("bodyKind")),
+        Some(&serde_json::json!("devFixture"))
+    );
+    assert_eq!(
+        deleted.get("eventType"),
+        Some(&serde_json::json!(
+            "choreographyScheduler.pendingBodyDeleted"
+        ))
+    );
+    assert_eq!(
+        deleted
+            .get("payload")
+            .and_then(|payload| payload.get("planId")),
+        Some(&serde_json::json!(plan_id))
+    );
+}
+
+#[test]
+fn rebuilds_choreography_pending_execution_body_cache_from_jsonl_facts() {
+    let storage = BuddyStorage::new_temporary_for_test().expect("create storage");
+    let kept_plan_id = "plan_pending_body_rebuild_019f6000-0000-7000-8000-000000000021";
+    let deleted_plan_id = "plan_pending_body_rebuild_019f6000-0000-7000-8000-000000000022";
+    let initial_timeline_body = serde_json::json!({
+        "schemaVersion": 1,
+        "plan": {
+            "planId": kept_plan_id,
+            "steps": []
+        }
+    });
+    let final_fixture_body = serde_json::json!({
+        "schemaVersion": 1,
+        "fixtureKind": "aiMacroDemo"
+    });
+    let deleted_timeline_body = serde_json::json!({
+        "schemaVersion": 1,
+        "plan": {
+            "planId": deleted_plan_id,
+            "steps": []
+        }
+    });
+
+    storage
+        .upsert_choreography_pending_execution_body(UpsertChoreographyPendingExecutionBodyRequest {
+            plan_id: kept_plan_id.to_owned(),
+            body_kind: ChoreographyPendingExecutionBodyKind::Timeline,
+            schema_version: 1,
+            body: initial_timeline_body,
+        })
+        .expect("store initial pending body");
+    storage
+        .upsert_choreography_pending_execution_body(UpsertChoreographyPendingExecutionBodyRequest {
+            plan_id: deleted_plan_id.to_owned(),
+            body_kind: ChoreographyPendingExecutionBodyKind::Timeline,
+            schema_version: 1,
+            body: deleted_timeline_body,
+        })
+        .expect("store deleted pending body");
+    storage
+        .upsert_choreography_pending_execution_body(UpsertChoreographyPendingExecutionBodyRequest {
+            plan_id: kept_plan_id.to_owned(),
+            body_kind: ChoreographyPendingExecutionBodyKind::DevFixture,
+            schema_version: 1,
+            body: final_fixture_body.clone(),
+        })
+        .expect("replace kept pending body");
+    assert!(storage
+        .delete_choreography_pending_execution_body(deleted_plan_id)
+        .expect("delete second pending body"));
+    let jsonl_line_count = storage.read_action_log_jsonl_lines_for_test().len();
+
+    assert_eq!(
+        storage
+            .clear_choreography_pending_execution_bodies()
+            .expect("clear sqlite cache"),
+        1
+    );
+    assert!(storage
+        .find_choreography_pending_execution_body(kept_plan_id)
+        .expect("find after clear")
+        .is_none());
+
+    let rebuilt_count = storage
+        .rebuild_choreography_pending_execution_body_cache_from_action_log()
+        .expect("rebuild pending body cache from JSONL facts");
+    let rebuilt = storage
+        .find_choreography_pending_execution_body(kept_plan_id)
+        .expect("find rebuilt body")
+        .expect("rebuilt pending body exists");
+
+    assert_eq!(rebuilt_count, 1);
+    assert_eq!(
+        rebuilt.body_kind,
+        ChoreographyPendingExecutionBodyKind::DevFixture
+    );
+    assert_eq!(rebuilt.body, final_fixture_body);
+    assert!(storage
+        .find_choreography_pending_execution_body(deleted_plan_id)
+        .expect("find deleted body after rebuild")
+        .is_none());
+    assert_eq!(
+        storage.read_action_log_jsonl_lines_for_test().len(),
+        jsonl_line_count
+    );
+}
+
+#[test]
+fn rebuild_does_not_restore_pending_execution_body_after_terminal_plan_event() {
+    let storage = BuddyStorage::new_temporary_for_test().expect("create storage");
+    let plan_id = "plan_pending_body_rebuild_019f6000-0000-7000-8000-000000000031";
+    let pending_body = serde_json::json!({
+        "schemaVersion": 1,
+        "fixtureKind": "aiMacroDemo"
+    });
+
+    storage
+        .upsert_choreography_pending_execution_body(UpsertChoreographyPendingExecutionBodyRequest {
+            plan_id: plan_id.to_owned(),
+            body_kind: ChoreographyPendingExecutionBodyKind::DevFixture,
+            schema_version: 1,
+            body: pending_body,
+        })
+        .expect("store pending body");
+    storage
+        .append_choreography_action_log_event(
+            &ActionLogEvent::plan_interrupted_after_runtime_restart(
+                "evt_pending_body_rebuild_terminal_plan",
+                plan_id,
+                serde_json::json!({
+                    "kind": "devFixture",
+                    "fixtureName": "terminal-pending-body",
+                }),
+                "deferred",
+                "executor.deferred",
+                "admission.waitingForActiveStepToFinish",
+                "2026-07-13T00:00:00.000Z",
+            ),
+        )
+        .expect("append terminal plan event");
+    storage
+        .clear_choreography_pending_execution_bodies()
+        .expect("clear sqlite cache");
+
+    let rebuilt_count = storage
+        .rebuild_choreography_pending_execution_body_cache_from_action_log()
+        .expect("rebuild pending body cache from JSONL facts");
+
+    assert_eq!(rebuilt_count, 0);
+    assert!(storage
+        .find_choreography_pending_execution_body(plan_id)
+        .expect("find terminal pending body")
+        .is_none());
+}
+
+#[test]
+fn finds_replayable_pending_execution_body_from_jsonl_after_restart_interruption() {
+    let storage = BuddyStorage::new_temporary_for_test().expect("create storage");
+    let plan_id = "plan_pending_body_replay_019f6000-0000-7000-8000-000000000051";
+    let pending_body = serde_json::json!({
+        "schemaVersion": 1,
+        "plan": {
+            "planId": plan_id,
+            "steps": []
+        }
+    });
+
+    storage
+        .upsert_choreography_pending_execution_body(UpsertChoreographyPendingExecutionBodyRequest {
+            plan_id: plan_id.to_owned(),
+            body_kind: ChoreographyPendingExecutionBodyKind::Timeline,
+            schema_version: 1,
+            body: pending_body.clone(),
+        })
+        .expect("store pending body");
+    storage
+        .append_choreography_action_log_event(
+            &ActionLogEvent::plan_interrupted_after_runtime_restart(
+                "evt_pending_body_replay_terminal_plan",
+                plan_id,
+                serde_json::json!({
+                    "kind": "devFixture",
+                    "fixtureName": "replayable-pending-body",
+                }),
+                "deferred",
+                "executor.deferred",
+                "admission.waitingForActiveStepToFinish",
+                "2026-07-13T00:00:00.000Z",
+            ),
+        )
+        .expect("append terminal plan event");
+    storage
+        .clear_choreography_pending_execution_bodies()
+        .expect("clear sqlite cache");
+    assert_eq!(
+        storage
+            .rebuild_choreography_pending_execution_body_cache_from_action_log()
+            .expect("rebuild pending body cache from JSONL facts"),
+        0
+    );
+
+    let replayable: ReplayableChoreographyPendingExecutionBody = storage
+        .find_replayable_choreography_pending_execution_body_from_action_log(plan_id)
+        .expect("find replayable pending body")
+        .expect("replayable pending body exists");
+
+    assert_eq!(replayable.plan_id, plan_id);
+    assert_eq!(
+        replayable.body_kind,
+        ChoreographyPendingExecutionBodyKind::Timeline
+    );
+    assert_eq!(replayable.schema_version, 1);
+    assert_eq!(replayable.body, pending_body);
+    assert!(replayable.stored_event_id.starts_with("evt_"));
+    assert!(storage
+        .find_choreography_pending_execution_body(plan_id)
+        .expect("find live pending body after replay lookup")
+        .is_none());
+}
+
+#[test]
+fn accepted_admission_consumes_replayable_pending_execution_body() {
+    let storage = BuddyStorage::new_temporary_for_test().expect("create storage");
+    let plan_id = "plan_pending_body_accepted_admission";
+    storage
+        .upsert_choreography_pending_execution_body(UpsertChoreographyPendingExecutionBodyRequest {
+            plan_id: plan_id.to_owned(),
+            body_kind: ChoreographyPendingExecutionBodyKind::Timeline,
+            schema_version: 1,
+            body: serde_json::json!({
+                "schemaVersion": 1,
+                "plan": { "planId": plan_id, "steps": [] }
+            }),
+        })
+        .expect("store pending body");
+    storage
+        .append_choreography_action_log_event(
+            &ActionLogEvent::executor_admission_decision_for_source(
+                "evt_pending_body_accepted_admission",
+                plan_id,
+                &serde_json::json!({
+                    "kind": "devFixture",
+                    "fixtureName": "pending-body-accepted-admission"
+                }),
+                ChoreographyTriggerSource::AiChoreography.action_log_value(),
+                &ChoreographyAdmissionDecision::Accepted {
+                    plan_id: plan_id.to_owned(),
+                    trigger_source: ChoreographyTriggerSource::AiChoreography,
+                    priority: ChoreographyPlanPriority::AiChoreography,
+                },
+                "2026-07-16T00:00:00.000Z",
+            ),
+        )
+        .expect("append accepted admission");
+
+    assert!(storage
+        .find_choreography_pending_execution_body(plan_id)
+        .expect("find cached pending body")
+        .is_none());
+    assert!(storage
+        .find_replayable_choreography_pending_execution_body_from_action_log(plan_id)
+        .expect("find replayable pending body")
+        .is_none());
+}
+
+#[test]
+fn lists_recoverable_pending_execution_entries_with_replayable_body() {
+    let storage = BuddyStorage::new_temporary_for_test().expect("create storage");
+    let plan_id = "plan_pending_execution_entry_019f6000-0000-7000-8000-000000000061";
+    let active_plan_id = "plan_active_execution_entry_019f6000-0000-7000-8000-000000000062";
+    let active_step_id = "step_active_execution_entry_019f6000-0000-7000-8000-000000000063";
+    let source_ref = serde_json::json!({
+        "kind": "devFixture",
+        "fixtureName": "recoverable-pending-execution-entry",
+    });
+    let pending_body = serde_json::json!({
+        "schemaVersion": 1,
+        "plan": {
+            "planId": plan_id,
+            "steps": []
+        }
+    });
+
+    storage
+        .upsert_choreography_pending_execution_body(UpsertChoreographyPendingExecutionBodyRequest {
+            plan_id: plan_id.to_owned(),
+            body_kind: ChoreographyPendingExecutionBodyKind::Timeline,
+            schema_version: 1,
+            body: pending_body.clone(),
+        })
+        .expect("store pending body");
+    storage
+        .append_choreography_action_log_event(
+            &ActionLogEvent::executor_admission_decision_for_source(
+                "evt_recoverable_pending_execution_entry",
+                plan_id,
+                &source_ref,
+                ChoreographyTriggerSource::UserRequested.action_log_value(),
+                &ChoreographyAdmissionDecision::Deferred {
+                    plan_id: plan_id.to_owned(),
+                    trigger_source: ChoreographyTriggerSource::UserRequested,
+                    priority: ChoreographyPlanPriority::UserRequested,
+                    active_plan_id: active_plan_id.to_owned(),
+                    active_step_id: Some(active_step_id.to_owned()),
+                    active_priority: ChoreographyPlanPriority::AiChoreography,
+                    active_step_interrupt_policy: SidecarInterruptPolicy::FinishStep,
+                    reason_code: "admission.waitingForActiveStepToFinish".to_owned(),
+                },
+                "2026-07-13T00:10:00.000Z",
+            ),
+        )
+        .expect("append deferred admission event");
+    storage
+        .clear_choreography_pending_execution_bodies()
+        .expect("clear live pending body cache");
+    assert_eq!(
+        storage
+            .rebuild_choreography_pending_execution_body_cache_from_action_log()
+            .expect("rebuild pending body cache from JSONL facts"),
+        1
+    );
+
+    let entries = storage
+        .list_recoverable_choreography_pending_executions_after_startup()
+        .expect("list recoverable pending execution entries");
+
+    assert_eq!(entries.len(), 1);
+    let entry = &entries[0];
+    assert_eq!(entry.admission.plan_id, plan_id);
+    assert_eq!(entry.admission.source_ref, source_ref);
+    assert_eq!(entry.admission.active_plan_id, active_plan_id);
+    assert_eq!(
+        entry.admission.active_step_id.as_deref(),
+        Some(active_step_id)
+    );
+    assert_eq!(
+        entry.admission.active_step_interrupt_policy,
+        SidecarInterruptPolicy::FinishStep
+    );
+    assert_eq!(entry.body.plan_id, plan_id);
+    assert_eq!(
+        entry.body.body_kind,
+        ChoreographyPendingExecutionBodyKind::Timeline
+    );
+    assert_eq!(entry.body.schema_version, 1);
+    assert_eq!(entry.body.body, pending_body);
+    assert!(entry.body.stored_event_id.starts_with("evt_"));
+}
+
+#[test]
+fn lists_recoverable_pending_admission_metadata_from_deferred_events_with_pending_body() {
+    let storage = BuddyStorage::new_temporary_for_test().expect("create storage");
+    let plan_id = "plan_pending_admission_019f6000-0000-7000-8000-000000000041";
+    let active_plan_id = "plan_active_admission_019f6000-0000-7000-8000-000000000042";
+    let active_step_id = "step_active_admission_019f6000-0000-7000-8000-000000000043";
+    let source_ref = serde_json::json!({
+        "kind": "devFixture",
+        "fixtureName": "recoverable-pending-admission",
+    });
+    let pending_body = serde_json::json!({
+        "schemaVersion": 1,
+        "plan": {
+            "planId": plan_id,
+            "steps": []
+        }
+    });
+
+    storage
+        .upsert_choreography_pending_execution_body(UpsertChoreographyPendingExecutionBodyRequest {
+            plan_id: plan_id.to_owned(),
+            body_kind: ChoreographyPendingExecutionBodyKind::Timeline,
+            schema_version: 1,
+            body: pending_body,
+        })
+        .expect("store pending body");
+    let decision = ChoreographyAdmissionDecision::Deferred {
+        plan_id: plan_id.to_owned(),
+        trigger_source: ChoreographyTriggerSource::UserRequested,
+        priority: ChoreographyPlanPriority::UserRequested,
+        active_plan_id: active_plan_id.to_owned(),
+        active_step_id: Some(active_step_id.to_owned()),
+        active_priority: ChoreographyPlanPriority::AiChoreography,
+        active_step_interrupt_policy: SidecarInterruptPolicy::FinishStep,
+        reason_code: "admission.waitingForActiveStepToFinish".to_owned(),
+    };
+    storage
+        .append_choreography_action_log_event(
+            &ActionLogEvent::executor_admission_decision_for_source(
+                "evt_recoverable_pending_admission",
+                plan_id,
+                &source_ref,
+                ChoreographyTriggerSource::UserRequested.action_log_value(),
+                &decision,
+                "2026-07-13T00:05:00.000Z",
+            ),
+        )
+        .expect("append deferred admission event");
+
+    let admissions = storage
+        .list_recoverable_choreography_pending_admissions_after_startup()
+        .expect("list recoverable pending admissions");
+
+    assert_eq!(admissions.len(), 1);
+    let admission = &admissions[0];
+    assert_eq!(admission.plan_id, plan_id);
+    assert_eq!(admission.source_ref, source_ref);
+    assert_eq!(
+        admission.trigger_source,
+        ChoreographyTriggerSource::UserRequested
+    );
+    assert_eq!(admission.priority, ChoreographyPlanPriority::UserRequested);
+    assert_eq!(
+        admission.reason_code,
+        "admission.waitingForActiveStepToFinish"
+    );
+    assert_eq!(admission.active_plan_id, active_plan_id);
+    assert_eq!(admission.active_step_id.as_deref(), Some(active_step_id));
+    assert_eq!(
+        admission.active_priority,
+        ChoreographyPlanPriority::AiChoreography
+    );
+    assert_eq!(
+        admission.active_step_interrupt_policy,
+        SidecarInterruptPolicy::FinishStep
+    );
+    assert_eq!(
+        admission.body_kind,
+        ChoreographyPendingExecutionBodyKind::Timeline
+    );
+    assert_eq!(admission.body_schema_version, 1);
+    assert_eq!(
+        admission.deferred_event_id,
+        "evt_recoverable_pending_admission"
+    );
+    assert_eq!(admission.deferred_at, "2026-07-13T00:05:00.000Z");
 }
 
 #[test]

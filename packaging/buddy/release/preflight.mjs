@@ -17,7 +17,7 @@ export function createBuddyReleasePreflightSteps() {
     {
       label: 'Buddy Rust tests',
       command: 'cargo',
-      args: ['test', '--manifest-path', 'apps/buddy/src-tauri/Cargo.toml'],
+      args: ['test', '--manifest-path', 'apps/buddy/src-tauri/Cargo.toml', '--', '--test-threads=1'],
     },
     {
       label: 'Buddy frontend tests',
@@ -28,6 +28,16 @@ export function createBuddyReleasePreflightSteps() {
       label: 'Buddy frontend type-check',
       command: 'pnpm',
       args: ['--filter', '@lexora/buddy', 'type-check'],
+    },
+    {
+      label: 'Buddy runtime asset manifest',
+      command: 'node',
+      args: ['packaging/buddy/release/verify-runtime-asset-manifest.mjs'],
+    },
+    {
+      label: 'Buddy macroIntent public surface',
+      command: 'node',
+      args: ['packaging/buddy/release/verify-macro-intent-public-surface.mjs'],
     },
     {
       label: 'Buddy delivery scope',

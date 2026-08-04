@@ -135,27 +135,35 @@ mod tests {
     };
 
     #[test]
-    fn low_speed_release_skips_inertia() {
+    fn invalid_release_velocity_skips_inertia() {
         let params = NativePetPhysicsParams::default();
-        let inertia = NativePetInertiaState::from_release(
-            NativePetPosition { x: 100, y: 200 },
-            NativePetLogicalVelocity { x: 40.0, y: 0.0 },
-            &params,
-        );
+        let cases = [
+            (
+                "below total speed threshold",
+                NativePetLogicalVelocity { x: 300.0, y: 0.0 },
+            ),
+            (
+                "below horizontal speed threshold",
+                NativePetLogicalVelocity { x: 40.0, y: -900.0 },
+            ),
+            (
+                "vertical-dominant release",
+                NativePetLogicalVelocity {
+                    x: 400.0,
+                    y: -900.0,
+                },
+            ),
+        ];
 
-        assert!(inertia.is_none());
-    }
+        for (label, velocity) in cases {
+            let inertia = NativePetInertiaState::from_release(
+                NativePetPosition { x: 100, y: 200 },
+                velocity,
+                &params,
+            );
 
-    #[test]
-    fn short_release_skips_inertia_to_avoid_single_frame_run_flash() {
-        let params = NativePetPhysicsParams::default();
-        let inertia = NativePetInertiaState::from_release(
-            NativePetPosition { x: 100, y: 200 },
-            NativePetLogicalVelocity { x: 300.0, y: 0.0 },
-            &params,
-        );
-
-        assert!(inertia.is_none());
+            assert!(inertia.is_none(), "inertia should be skipped: {label}");
+        }
     }
 
     #[test]
@@ -194,33 +202,6 @@ mod tests {
 
         assert_eq!(step.position, NativePetPosition { x: 100, y: 200 });
         assert_eq!(step.clamped_dt_seconds, 0.0);
-    }
-
-    #[test]
-    fn vertical_release_skips_inertia_without_directional_gait() {
-        let params = NativePetPhysicsParams::default();
-        let inertia = NativePetInertiaState::from_release(
-            NativePetPosition { x: 100, y: 200 },
-            NativePetLogicalVelocity { x: 40.0, y: -900.0 },
-            &params,
-        );
-
-        assert!(inertia.is_none());
-    }
-
-    #[test]
-    fn vertical_dominant_release_skips_inertia_even_with_some_horizontal_speed() {
-        let params = NativePetPhysicsParams::default();
-        let inertia = NativePetInertiaState::from_release(
-            NativePetPosition { x: 100, y: 200 },
-            NativePetLogicalVelocity {
-                x: 220.0,
-                y: -900.0,
-            },
-            &params,
-        );
-
-        assert!(inertia.is_none());
     }
 
     #[test]

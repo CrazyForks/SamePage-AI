@@ -1,4 +1,7 @@
-use std::{path::PathBuf, sync::mpsc};
+use std::{
+    path::PathBuf,
+    sync::{mpsc, Arc},
+};
 
 use tauri::{AppHandle, Emitter, State, Window};
 
@@ -22,10 +25,13 @@ use crate::{
     },
 };
 
+pub(crate) mod action_log;
+mod action_source_ref;
 pub(crate) mod agent_turn;
 pub(crate) mod approval;
 pub(crate) mod attachment;
 mod chat_input;
+pub(crate) mod choreography;
 mod codex_runtime;
 mod host_action;
 pub(crate) mod run_events;
@@ -210,18 +216,10 @@ pub fn start_buddy_current_window_dragging(window: Window) -> BuddyCommandResult
 
 #[tauri::command]
 pub fn set_buddy_native_pet_animation(
-    pet_process: State<'_, NativePetSidecarProcess>,
+    pet_process: State<'_, Arc<NativePetSidecarProcess>>,
     animation: String,
 ) -> BuddyCommandResult<()> {
     Ok(pet_process.set_animation(&animation)?)
-}
-
-#[tauri::command]
-pub fn control_buddy_native_pet_host_action(
-    pet_process: State<'_, NativePetSidecarProcess>,
-    action: serde_json::Value,
-) -> BuddyCommandResult<()> {
-    Ok(pet_process.control_host_action(action)?)
 }
 
 fn buddy_current_window_frame_state(window: &Window) -> BuddyCommandResult<BuddyWindowFrameState> {

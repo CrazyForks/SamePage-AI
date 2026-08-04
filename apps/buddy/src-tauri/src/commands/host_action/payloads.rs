@@ -1,6 +1,9 @@
 use std::collections::BTreeSet;
 
-use crate::storage::BuddyRunEvent;
+use crate::{
+    choreography::macro_plan::{is_public_macro_intent_params_valid, MacroIntent},
+    storage::BuddyRunEvent,
+};
 
 use super::super::{read_json_string_field, runtime_events::CodexRuntimeOutput};
 
@@ -8,6 +11,7 @@ const BUDDY_ANIMATION_INTENT_START_TAG: &str = "<lexora_buddy_animation_intent>"
 const BUDDY_ANIMATION_INTENT_END_TAG: &str = "</lexora_buddy_animation_intent>";
 const BUDDY_HOST_ACTION_START_TAG: &str = "<lexora_buddy_host_action>";
 const BUDDY_HOST_ACTION_END_TAG: &str = "</lexora_buddy_host_action>";
+const BUDDY_HOST_ACTION_REASON_MAX_LEN: usize = 120;
 const BUDDY_HOST_ACTION_SOURCE: &str = "buddy_builtin_host_skill";
 
 pub(super) fn collect_buddy_host_action_payloads(
@@ -40,23 +44,14 @@ pub(super) fn collect_buddy_host_action_payloads(
 }
 
 fn extract_buddy_host_action_payloads(content: &str) -> Vec<serde_json::Value> {
-    let host_actions = extract_buddy_json_tag_payloads(
+    extract_buddy_json_tag_payloads(
         content,
         BUDDY_HOST_ACTION_START_TAG,
         BUDDY_HOST_ACTION_END_TAG,
     )
     .into_iter()
-    .filter_map(normalize_buddy_host_action_payload);
-
-    let legacy_intents = extract_buddy_json_tag_payloads(
-        content,
-        BUDDY_ANIMATION_INTENT_START_TAG,
-        BUDDY_ANIMATION_INTENT_END_TAG,
-    )
-    .into_iter()
-    .filter_map(normalize_buddy_legacy_animation_intent_payload);
-
-    host_actions.chain(legacy_intents).collect()
+    .filter_map(normalize_buddy_host_action_payload)
+    .collect()
 }
 
 fn extract_buddy_json_tag_payloads(
@@ -86,280 +81,118 @@ fn extract_buddy_json_tag_payloads(
 
 fn normalize_buddy_host_action_payload(value: serde_json::Value) -> Option<serde_json::Value> {
     let object = value.as_object()?;
+    if !buddy_json_object_protocol_version_is_supported(object) {
+        return None;
+    }
 
-    match read_buddy_json_trimmed_string(object, "action")? {
-        "animation" => normalize_buddy_host_animation_action_payload(object),
-        "move" => normalize_buddy_host_move_action_payload(object),
-        "sequence" => normalize_buddy_host_sequence_action_payload(object),
+    match read_buddy_json_string(object, "action")? {
+        "macroIntent" => normalize_buddy_host_macro_intent_action_payload(object),
         _ => None,
     }
 }
 
-fn normalize_buddy_host_animation_action_payload(
+fn normalize_buddy_host_macro_intent_action_payload(
     object: &serde_json::Map<String, serde_json::Value>,
 ) -> Option<serde_json::Value> {
-    let animation = read_buddy_json_trimmed_string(object, "animation")?;
-    if !is_buddy_host_animation_name(animation) {
+    if !buddy_json_object_has_only_keys(
+        object,
+        &["action", "intent", "priority", "reason", "version"],
+    ) {
         return None;
     }
 
-    let mut payload = serde_json::json!({
-        "version": 1,
-        "action": "animation",
-        "animation": animation,
-        "source": BUDDY_HOST_ACTION_SOURCE,
-    });
-    append_buddy_host_animation_fields(&mut payload, object)?;
-    Some(payload)
-}
-
-fn normalize_buddy_host_move_action_payload(
-    object: &serde_json::Map<String, serde_json::Value>,
-) -> Option<serde_json::Value> {
-    let target = normalize_buddy_host_move_target(object.get("target")?)?;
-    let mut payload = serde_json::json!({
-        "version": 1,
-        "action": "move",
-        "target": target,
-        "source": BUDDY_HOST_ACTION_SOURCE,
-    });
-    append_buddy_host_move_fields(&mut payload, object)?;
-    Some(payload)
-}
-
-fn normalize_buddy_host_sequence_action_payload(
-    object: &serde_json::Map<String, serde_json::Value>,
-) -> Option<serde_json::Value> {
-    let steps = object.get("steps")?.as_array()?;
-    if steps.is_empty() || steps.len() > 8 {
+    let intent = serde_json::from_value::<MacroIntent>(object.get("intent")?.clone()).ok()?;
+    if !is_public_macro_intent_params_valid(&intent) {
         return None;
     }
-
-    let normalized_steps = steps
-        .iter()
-        .map(normalize_buddy_host_sequence_step)
-        .collect::<Option<Vec<_>>>()?;
-
     let mut payload = serde_json::json!({
         "version": 1,
-        "action": "sequence",
-        "steps": normalized_steps,
+        "action": "macroIntent",
+        "intent": serde_json::to_value(intent).ok()?,
         "source": BUDDY_HOST_ACTION_SOURCE,
     });
     append_buddy_host_common_fields(&mut payload, object)?;
     Some(payload)
 }
 
-fn normalize_buddy_host_sequence_step(value: &serde_json::Value) -> Option<serde_json::Value> {
-    let object = value.as_object()?;
-    match read_buddy_json_trimmed_string(object, "type")
-        .or_else(|| read_buddy_json_trimmed_string(object, "action"))?
-    {
-        "animation" => {
-            let animation = read_buddy_json_trimmed_string(object, "animation")?;
-            if !is_buddy_host_animation_name(animation) {
-                return None;
-            }
-            let mut payload = serde_json::json!({
-                "type": "animation",
-                "animation": animation,
-            });
-            append_buddy_host_animation_fields(&mut payload, object)?;
-            Some(payload)
-        }
-        "move" => {
-            let target = normalize_buddy_host_move_target(object.get("target")?)?;
-            let mut payload = serde_json::json!({
-                "type": "move",
-                "target": target,
-            });
-            append_buddy_host_move_fields(&mut payload, object)?;
-            Some(payload)
-        }
-        _ => None,
-    }
-}
-
-fn normalize_buddy_host_move_target(value: &serde_json::Value) -> Option<serde_json::Value> {
-    if let Some(target) = value.as_str().map(str::trim) {
-        return match target {
-            "center" | "home" => Some(serde_json::json!({ "kind": target })),
-            _ => None,
-        };
-    }
-
-    let object = value.as_object()?;
-    match read_buddy_json_trimmed_string(object, "kind")? {
-        "center" => Some(serde_json::json!({ "kind": "center" })),
-        "home" => Some(serde_json::json!({ "kind": "home" })),
-        "edge" => {
-            let edge = read_buddy_json_trimmed_string(object, "edge")?;
-            if !matches!(edge, "left" | "right" | "top" | "bottom") {
-                return None;
-            }
-            Some(serde_json::json!({ "kind": "edge", "edge": edge }))
-        }
-        "position" => {
-            let x = read_buddy_json_i32_field(object, "x")?;
-            let y = read_buddy_json_i32_field(object, "y")?;
-            Some(serde_json::json!({ "kind": "position", "x": x, "y": y }))
-        }
-        "x" => {
-            let x = read_buddy_json_i32_field(object, "x")?;
-            Some(serde_json::json!({ "kind": "x", "x": x }))
-        }
-        _ => None,
-    }
-}
-
-fn normalize_buddy_legacy_animation_intent_payload(
-    value: serde_json::Value,
-) -> Option<serde_json::Value> {
-    let object = value.as_object()?;
-    let intent = read_buddy_json_trimmed_string(object, "intent")?;
-    let animation = map_buddy_legacy_animation_intent_name(intent)?;
-
-    let mut payload = serde_json::json!({
-        "version": 1,
-        "action": "animation",
-        "animation": animation,
-        "source": BUDDY_HOST_ACTION_SOURCE,
-    });
-    append_buddy_host_animation_fields(&mut payload, object)?;
-    Some(payload)
-}
-
-fn append_buddy_host_animation_fields(
-    payload: &mut serde_json::Value,
-    object: &serde_json::Map<String, serde_json::Value>,
-) -> Option<()> {
-    append_buddy_host_common_fields(payload, object)?;
-    if let Some(duration_ms) = object
-        .get("durationMs")
-        .and_then(serde_json::Value::as_u64)
-        .filter(|duration_ms| (100..=30_000).contains(duration_ms))
-    {
-        payload["durationMs"] = serde_json::json!(duration_ms);
-    }
-    Some(())
-}
-
-fn append_buddy_host_move_fields(
-    payload: &mut serde_json::Value,
-    object: &serde_json::Map<String, serde_json::Value>,
-) -> Option<()> {
-    append_buddy_host_common_fields(payload, object)?;
-    if let Some(after) = object
-        .get("after")
-        .and_then(serde_json::Value::as_str)
-        .map(str::trim)
-        .filter(|after| !after.is_empty())
-    {
-        if !is_buddy_host_animation_name(after) {
-            return None;
-        }
-        payload["after"] = serde_json::json!(after);
-    }
-    Some(())
-}
-
 fn append_buddy_host_common_fields(
     payload: &mut serde_json::Value,
     object: &serde_json::Map<String, serde_json::Value>,
 ) -> Option<()> {
-    if let Some(priority) = object
-        .get("priority")
-        .and_then(serde_json::Value::as_str)
-        .map(str::trim)
-        .filter(|priority| !priority.is_empty())
-    {
+    if let Some(priority_value) = object.get("priority") {
+        let priority = priority_value.as_str()?;
         if !is_buddy_host_action_priority(priority) {
             return None;
         }
         payload["priority"] = serde_json::json!(priority);
     }
-    if let Some(reason) = object
-        .get("reason")
-        .and_then(serde_json::Value::as_str)
-        .map(str::trim)
-        .filter(|reason| !reason.is_empty())
-    {
-        payload["reason"] = serde_json::json!(reason.chars().take(120).collect::<String>());
+    if let Some(reason_value) = object.get("reason") {
+        let reason = reason_value.as_str()?;
+        if !is_buddy_host_action_reason(reason) {
+            return None;
+        }
+        payload["reason"] = serde_json::json!(reason);
     }
     Some(())
 }
 
-fn read_buddy_json_trimmed_string<'a>(
+fn read_buddy_json_string<'a>(
     object: &'a serde_json::Map<String, serde_json::Value>,
     key: &str,
 ) -> Option<&'a str> {
-    object
-        .get(key)
-        .and_then(serde_json::Value::as_str)
-        .map(str::trim)
-        .filter(|value| !value.is_empty())
+    object.get(key).and_then(serde_json::Value::as_str)
 }
 
-fn read_buddy_json_i32_field(
+fn buddy_json_object_has_only_keys(
     object: &serde_json::Map<String, serde_json::Value>,
-    key: &str,
-) -> Option<i32> {
-    object.get(key)?.as_i64()?.try_into().ok()
+    allowed_keys: &[&str],
+) -> bool {
+    object
+        .keys()
+        .all(|key| allowed_keys.contains(&key.as_str()))
 }
 
-fn map_buddy_legacy_animation_intent_name(value: &str) -> Option<&'static str> {
-    Some(match value {
-        "focus" => "working",
-        "celebrate" => "celebrate",
-        "curious" => "curious",
-        "explain" => "explain",
-        "idle" => "idle",
-        "reassure" => "reassure",
-        "run_left" => "run_left",
-        "run_right" => "run_right",
-        "sleep" => "sleep",
-        "stumble_recover_left" => "stumble_recover_left",
-        "stumble_recover_right" => "stumble_recover_right",
-        "trip_fall_left" => "trip_fall_left",
-        "trip_fall_right" => "trip_fall_right",
-        "wake" => "wake",
-        _ => return None,
-    })
-}
-
-fn is_buddy_host_animation_name(value: &str) -> bool {
-    matches!(
-        value,
-        "idle"
-            | "run_left"
-            | "run_right"
-            | "sleep"
-            | "wake"
-            | "hover"
-            | "tap"
-            | "grab_start"
-            | "drag"
-            | "approval"
-            | "thinking"
-            | "working"
-            | "celebrate"
-            | "sad"
-            | "reassure"
-            | "explain"
-            | "curious"
-            | "trip_fall_left"
-            | "fallen_idle_left"
-            | "fallen_get_up_left"
-            | "trip_fall_right"
-            | "fallen_idle_right"
-            | "fallen_get_up_right"
-            | "stumble_recover_left"
-            | "stumble_recover_right"
-    )
+fn buddy_json_object_protocol_version_is_supported(
+    object: &serde_json::Map<String, serde_json::Value>,
+) -> bool {
+    object
+        .get("version")
+        .is_some_and(|version| version.as_u64() == Some(1))
 }
 
 fn is_buddy_host_action_priority(value: &str) -> bool {
     matches!(value, "background" | "normal" | "high" | "urgent")
+}
+
+fn is_buddy_host_action_reason(value: &str) -> bool {
+    if value.is_empty() || value.len() > BUDDY_HOST_ACTION_REASON_MAX_LEN {
+        return false;
+    }
+
+    let mut chars = value.chars();
+    let Some(first) = chars.next() else {
+        return false;
+    };
+    if !first.is_ascii_lowercase() {
+        return false;
+    }
+
+    let mut previous_was_underscore = false;
+    for char in chars {
+        if char == '_' {
+            if previous_was_underscore {
+                return false;
+            }
+            previous_was_underscore = true;
+            continue;
+        }
+        if !char.is_ascii_lowercase() && !char.is_ascii_digit() {
+            return false;
+        }
+        previous_was_underscore = false;
+    }
+
+    !previous_was_underscore
 }
 
 pub(in crate::commands) fn strip_buddy_host_action_blocks(content: &str) -> String {
@@ -427,7 +260,7 @@ mod tests {
     use super::{extract_buddy_host_action_payloads, strip_buddy_host_action_blocks};
 
     #[test]
-    fn extracts_and_strips_buddy_host_action_blocks() {
+    fn ignores_direct_native_host_action_blocks_but_still_strips_them() {
         let content = r#"我会让桌宠庆祝。
 <lexora_buddy_host_action>{"action":"sequence","steps":[{"type":"move","target":"center"},{"type":"animation","animation":"celebrate","durationMs":3000},{"type":"move","target":{"kind":"home"},"after":"sleep"}],"priority":"high","reason":"done"}</lexora_buddy_host_action>
 继续保持安静。
@@ -436,16 +269,123 @@ mod tests {
         let payloads = extract_buddy_host_action_payloads(content);
         let stripped = strip_buddy_host_action_blocks(content);
 
-        assert_eq!(payloads.len(), 1);
-        assert_eq!(payloads[0]["action"], "sequence");
-        assert_eq!(payloads[0]["priority"], "high");
-        assert_eq!(payloads[0]["reason"], "done");
-        assert_eq!(payloads[0]["source"], "buddy_builtin_host_skill");
-        assert_eq!(payloads[0]["steps"][0]["target"]["kind"], "center");
-        assert_eq!(payloads[0]["steps"][1]["animation"], "celebrate");
-        assert_eq!(payloads[0]["steps"][1]["durationMs"], 3000);
-        assert_eq!(payloads[0]["steps"][2]["target"]["kind"], "home");
-        assert_eq!(payloads[0]["steps"][2]["after"], "sleep");
+        assert!(payloads.is_empty());
         assert_eq!(stripped, "我会让桌宠庆祝。\n继续保持安静。");
+    }
+
+    #[test]
+    fn extracts_choreography_macro_intent_host_action() {
+        let content = r#"<lexora_buddy_host_action>{"version":1,"action":"macroIntent","intent":{"macroId":"dance","params":{"durationMs":2500}},"reason":"user_requested_dance"}</lexora_buddy_host_action>"#;
+
+        let payloads = extract_buddy_host_action_payloads(content);
+
+        assert_eq!(payloads.len(), 1);
+        assert_eq!(payloads[0]["action"], "macroIntent");
+        assert_eq!(payloads[0]["intent"]["macroId"], "dance");
+        assert_eq!(payloads[0]["intent"]["params"]["durationMs"], 2500);
+        assert_eq!(payloads[0]["reason"], "user_requested_dance");
+        assert_eq!(payloads[0]["source"], "buddy_builtin_host_skill");
+    }
+
+    #[test]
+    fn rejects_macro_intent_reason_outside_builtin_host_schema() {
+        let invalid_reasons = vec![
+            "User Requested".to_owned(),
+            "user-requested".to_owned(),
+            "user requested".to_owned(),
+            "_user_requested".to_owned(),
+            "user_requested_".to_owned(),
+            "user__requested".to_owned(),
+            " user_requested".to_owned(),
+            "user_requested ".to_owned(),
+            "a".repeat(121),
+        ];
+
+        for reason in invalid_reasons {
+            let content = format!(
+                r#"<lexora_buddy_host_action>{{"version":1,"action":"macroIntent","intent":{{"macroId":"dance","params":{{"durationMs":2500}}}},"reason":"{reason}"}}</lexora_buddy_host_action>"#
+            );
+
+            let payloads = extract_buddy_host_action_payloads(&content);
+
+            assert!(payloads.is_empty(), "reason should be rejected: {reason}");
+        }
+    }
+
+    #[test]
+    fn rejects_macro_intent_priority_outside_builtin_host_schema() {
+        let invalid_priorities = vec![
+            serde_json::json!(""),
+            serde_json::json!("urgent_now"),
+            serde_json::json!("HIGH"),
+            serde_json::json!(" high"),
+            serde_json::json!("high "),
+            serde_json::json!(1),
+        ];
+
+        for priority in invalid_priorities {
+            let content = format!(
+                r#"<lexora_buddy_host_action>{{"version":1,"action":"macroIntent","intent":{{"macroId":"dance","params":{{"durationMs":2500}}}},"priority":{priority}}}</lexora_buddy_host_action>"#
+            );
+
+            let payloads = extract_buddy_host_action_payloads(&content);
+
+            assert!(
+                payloads.is_empty(),
+                "priority should be rejected: {priority}"
+            );
+        }
+    }
+
+    #[test]
+    fn rejects_macro_intent_action_outside_exact_wire_schema() {
+        let invalid_actions = [" macroIntent", "macroIntent ", "MacroIntent"];
+
+        for action in invalid_actions {
+            let content = format!(
+                r#"<lexora_buddy_host_action>{{"version":1,"action":"{action}","intent":{{"macroId":"dance","params":{{"durationMs":2500}}}}}}</lexora_buddy_host_action>"#
+            );
+
+            let payloads = extract_buddy_host_action_payloads(&content);
+
+            assert!(payloads.is_empty(), "action should be rejected: {action}");
+        }
+    }
+
+    #[test]
+    fn rejects_macro_intent_payloads_outside_public_wire_schema() {
+        let cases = [
+            (
+                "missing version",
+                r#"<lexora_buddy_host_action>{"action":"macroIntent","intent":{"macroId":"dance","params":{"durationMs":2500}}}</lexora_buddy_host_action>"#,
+            ),
+            (
+                "extra top-level field",
+                r#"<lexora_buddy_host_action>{"version":1,"action":"macroIntent","intent":{"macroId":"dance","params":{"durationMs":2500}},"previewTimeline":true}</lexora_buddy_host_action>"#,
+            ),
+            (
+                "unsupported version",
+                r#"<lexora_buddy_host_action>{"action":"macroIntent","intent":{"macroId":"dance","params":{"durationMs":2500}},"version":2}</lexora_buddy_host_action>"#,
+            ),
+            (
+                "dance duration below minimum",
+                r#"<lexora_buddy_host_action>{"version":1,"action":"macroIntent","intent":{"macroId":"dance","params":{"durationMs":0}}}</lexora_buddy_host_action>"#,
+            ),
+            (
+                "patrol loops below minimum",
+                r#"<lexora_buddy_host_action>{"version":1,"action":"macroIntent","intent":{"macroId":"patrolAroundScreen","params":{"loops":0}}}</lexora_buddy_host_action>"#,
+            ),
+            (
+                "peek duration above maximum",
+                r#"<lexora_buddy_host_action>{"version":1,"action":"macroIntent","intent":{"macroId":"peekBehindWindow","params":{"windowSelector":{"kind":"activeWindow"},"edge":"left","reveal":"head","durationMs":30000}}}</lexora_buddy_host_action>"#,
+            ),
+        ];
+
+        for (label, content) in cases {
+            assert!(
+                extract_buddy_host_action_payloads(content).is_empty(),
+                "payload should be rejected: {label}"
+            );
+        }
     }
 }

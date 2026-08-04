@@ -15,14 +15,17 @@ import {
 } from '@/lib/tauriRuntime'
 import { resolveBuddyAiAnimationIntentFromRunEvents } from '@/pet/buddyAnimation'
 import {
-  createBuddyNativePetHostActionPlaybackKey,
-  resolveBuddyNativePetHostActionFromRunEvents,
+  createBuddyChoreographyMacroIntentPlaybackKey,
+  isBuddyChoreographyMacroIntentFresh,
+  resolveBuddyChoreographyMacroIntentFromRunEvents,
+  resolveBuddyChoreographyMacroIntentSourceRef,
 } from '@/pet/buddyHostAction'
 import { createBuddyPetAnimationPlaybackKey, createBuddyPetStateView } from '@/pet/petStateView'
+import { useBuddyApprovalChoreographyMacroIntentSync } from '@/shell/useBuddyApprovalChoreographyMacroIntentSync'
 import { useBuddyAppSettings } from '@/shell/useBuddyAppSettings'
+import { useBuddyChoreographyMacroIntentSync } from '@/shell/useBuddyChoreographyMacroIntentSync'
 import { useBuddyContextMenuGuard } from '@/shell/useBuddyContextMenuGuard'
 import { useBuddyNativePetAnimationSync } from '@/shell/useBuddyNativePetAnimationSync'
-import { useBuddyNativePetHostActionSync } from '@/shell/useBuddyNativePetHostActionSync'
 
 const {
   appSettings,
@@ -74,6 +77,7 @@ const selectedChatRuntime = shallowRef<BuddyRuntime>('codex')
 const runtimeStatus = shallowRef(createBrowserRuntimeStatus())
 const claudeRuntimeStatus = shallowRef(createBrowserClaudeRuntimeStatus())
 const animationNowUnixMs = shallowRef(Date.now())
+const nativePetSyncStartedAtUnixMs = Date.now()
 let animationClockTimer: number | null = null
 
 onMounted(() => {
@@ -115,11 +119,11 @@ const activeChatRuntime = computed(() =>
       }),
 )
 const pendingApprovalIds = computed(() => chatApprovals.value.map(approval => approval.id))
-const nativePetHostAction = computed(() => {
+const choreographyMacroIntent = computed(() => {
   if (runtimeStatus.value.shell !== 'tauri')
     return null
 
-  return resolveBuddyNativePetHostActionFromRunEvents(chatRunEvents.value)
+  return resolveBuddyChoreographyMacroIntentFromRunEvents(chatRunEvents.value)
 })
 
 const nativePetState = computed(() => {
@@ -134,6 +138,7 @@ const nativePetState = computed(() => {
     chatErrorMessage: chatErrorMessage.value,
     desktopReady: runtimeStatus.value.desktopReady,
     isSending: isChatSending.value,
+    latestRunCompletedAt: latestRun.value?.completedAt ?? null,
     latestRunStatus: latestRun.value?.status ?? null,
     nowUnixMs: animationNowUnixMs.value,
     pendingApprovalCount: chatApprovals.value.length,
@@ -153,13 +158,28 @@ const nativePetAnimationPlaybackKey = computed(() => {
   })
 })
 
-const nativePetHostActionPlaybackKey = computed(() =>
-  createBuddyNativePetHostActionPlaybackKey(nativePetHostAction.value),
+const choreographyMacroIntentPlaybackKey = computed(() =>
+  createBuddyChoreographyMacroIntentPlaybackKey(choreographyMacroIntent.value),
+)
+const canSyncChoreographyMacroIntent = computed(() =>
+  isBuddyChoreographyMacroIntentFresh(
+    choreographyMacroIntent.value,
+    nativePetSyncStartedAtUnixMs,
+  ),
 )
 
-useBuddyNativePetHostActionSync({
-  action: () => nativePetHostAction.value?.action,
-  playbackKey: () => nativePetHostActionPlaybackKey.value,
+useBuddyChoreographyMacroIntentSync({
+  enabled: () => canSyncChoreographyMacroIntent.value,
+  intent: () => choreographyMacroIntent.value?.intent,
+  playbackKey: () => choreographyMacroIntentPlaybackKey.value,
+  runtime: () => choreographyMacroIntent.value?.runtime,
+  sourceRef: () => resolveBuddyChoreographyMacroIntentSourceRef(choreographyMacroIntent.value),
+})
+
+useBuddyApprovalChoreographyMacroIntentSync({
+  approvals: () => chatApprovals.value,
+  enabled: () => runtimeStatus.value.shell === 'tauri',
+  startedAtUnixMs: () => nativePetSyncStartedAtUnixMs,
 })
 
 useBuddyNativePetAnimationSync({

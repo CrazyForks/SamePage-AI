@@ -3,7 +3,7 @@ use std::cell::Cell;
 use gdk::prelude::*;
 
 use super::{
-    animation::{NativePetAnimationName, NativePetAnimationPlayback},
+    animation::NativePetAnimationPlayback,
     bounds::native_pet_runtime_resolve_window_placement,
     coordinates::NativePetLogicalSize,
     drag_motion::NativePetDragMotionState,
@@ -12,6 +12,7 @@ use super::{
         NativePetDragStateMachine,
     },
     geometry::NativePetFacing,
+    lifecycle::NativePetMovementActionTargets,
     physics_params::NativePetPhysicsParams,
     window_movement::NativePetWindowMovementAdapter,
 };
@@ -20,6 +21,15 @@ use super::{
 pub(super) struct NativePetDragRuntimeState {
     grabbed_seat: Option<gdk::Seat>,
     motion: NativePetDragMotionState,
+}
+
+pub(super) struct NativePetDragCommitContext<'a, 'b> {
+    pub(super) playback: &'a mut NativePetAnimationPlayback,
+    pub(super) movement_action_targets: &'a NativePetMovementActionTargets,
+    pub(super) pet_facing: &'a Cell<NativePetFacing>,
+    pub(super) movement_adapter: &'a NativePetWindowMovementAdapter<'b>,
+    pub(super) window_size: NativePetLogicalSize,
+    pub(super) drag_debug: bool,
 }
 
 impl NativePetDragRuntimeState {
@@ -62,14 +72,10 @@ impl NativePetDragRuntimeState {
 pub(super) fn native_pet_commit_drag_update(
     state: &mut NativePetDragRuntimeState,
     update: NativePetDragFrameUpdate,
-    playback: &mut NativePetAnimationPlayback,
-    pet_facing: &Cell<NativePetFacing>,
-    movement_adapter: &NativePetWindowMovementAdapter<'_>,
-    window_size: NativePetLogicalSize,
-    drag_debug: bool,
+    context: NativePetDragCommitContext<'_, '_>,
 ) {
     if update.movement_dx.abs() > 1.0 {
-        pet_facing.set(if update.movement_dx > 0.0 {
+        context.pet_facing.set(if update.movement_dx > 0.0 {
             NativePetFacing::Right
         } else {
             NativePetFacing::Left
@@ -77,15 +83,17 @@ pub(super) fn native_pet_commit_drag_update(
     }
 
     if matches!(update.phase, NativePetDragPhase::Dragging) {
-        playback.set_animation(NativePetAnimationName::Drag);
+        context
+            .playback
+            .set_animation_target(context.movement_action_targets.drag());
         let cursor_position = state.motion.latest_cursor_position();
         let bounds = native_pet_runtime_resolve_window_placement(
             update.position,
-            window_size,
+            context.window_size,
             Some(cursor_position),
         );
-        movement_adapter.move_to(bounds.placement);
-        if drag_debug {
+        context.movement_adapter.move_to(bounds.placement);
+        if context.drag_debug {
             eprintln!(
                 "native-pet-drag-debug frame cursor=({:.1},{:.1}) dx={:.1} distance={:.1} position=({}, {}) monitor={:?} visibility={:?}",
                 cursor_position.x,
@@ -98,7 +106,7 @@ pub(super) fn native_pet_commit_drag_update(
                 bounds.visibility,
             );
         }
-    } else if drag_debug {
+    } else if context.drag_debug {
         let cursor_position = state.motion.latest_cursor_position();
         eprintln!(
             "native-pet-drag-debug frame cursor=({:.1},{:.1}) dx={:.1} distance={:.1} pending",

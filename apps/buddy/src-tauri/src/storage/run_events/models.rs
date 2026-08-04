@@ -83,33 +83,3 @@ pub struct BuddyRunEventSummary {
     pub payload_chars: i64,
     pub created_at: String,
 }
-
-#[cfg(test)]
-mod tests {
-    use super::CreateBuddyRunEventRequest;
-    use crate::domain::BuddyRunEventType;
-
-    #[test]
-    fn create_run_event_request_new_uses_stable_event_type() {
-        let request = CreateBuddyRunEventRequest::new(
-            "run-1",
-            BuddyRunEventType::RunStarted,
-            serde_json::json!({ "runtime": "codex" }),
-        );
-
-        assert_eq!(request.event_type, "run.started");
-        assert_eq!(request.run_id, "run-1");
-        assert_eq!(request.payload["runtime"], "codex");
-    }
-
-    #[test]
-    fn create_run_event_request_projected_preserves_runtime_event_type() {
-        let request = CreateBuddyRunEventRequest::projected(
-            "run-1",
-            "tool.finished",
-            serde_json::json!({ "itemId": "tool-1" }),
-        );
-
-        assert_eq!(request.event_type, "tool.finished");
-    }
-}

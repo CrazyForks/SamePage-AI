@@ -69,9 +69,11 @@ pnpm check:buddy
 pnpm check:buddy:delivery
 pnpm check:buddy:delivery:list
 node packaging/buddy/aur/verify-bin-package.mjs
+pnpm check:buddy:installed
 ```
 
 `verify-bin-package.mjs` 校验本地 deb、AUR 元数据、deb 内容、生成的 pacman 包和安装后二进制 health check。
+`pnpm check:buddy:installed` 用于手动安装后复测真实系统路径：它会对比当前 release 元数据期望的 `lexora-buddy-bin <pkgver>-<pkgrel>`、系统安装包版本、`/usr/bin/lexora-buddy` hash、socket 响应、sidecar 数量，以及安装版 capabilities 动画表与当前 runtime manifest，避免把已构建但未安装的源码产物或同版本旧内容误当成 installed 验证。
 
 ## CI 与外部验收
 

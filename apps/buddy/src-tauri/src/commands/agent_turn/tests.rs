@@ -2,7 +2,15 @@ use std::{fs, path::PathBuf};
 
 use super::{create_buddy_agent_turn_plan, StartBuddyAgentTurnRequest};
 use crate::{
-    agents::codex, app_paths::BuddyAppPaths, intent::BuddyChatIntent, state::BuddyAppState,
+    agents::codex,
+    app_paths::BuddyAppPaths,
+    choreography::macro_plan::{
+        PUBLIC_DANCE_DURATION_MS_MAX, PUBLIC_DANCE_DURATION_MS_MIN, PUBLIC_MACRO_INTENT_IDS,
+        PUBLIC_PATROL_AROUND_SCREEN_LOOPS_MAX, PUBLIC_PATROL_AROUND_SCREEN_LOOPS_MIN,
+        PUBLIC_PEEK_BEHIND_WINDOW_DURATION_MS_MAX, PUBLIC_PEEK_BEHIND_WINDOW_DURATION_MS_MIN,
+    },
+    intent::BuddyChatIntent,
+    state::BuddyAppState,
     storage::CreateBuddyConversationRequest,
 };
 
@@ -440,6 +448,39 @@ fn agent_turn_plan_materializes_and_injects_buddy_builtin_host_skill() {
     assert!(skill_content.contains("Do not run commands"));
     assert!(skill_content.contains("name: lexora-buddy-host"));
     assert!(skill_content.contains("<lexora_buddy_host_action>"));
+    assert!(skill_content.contains("exactly `macroIntent`"));
+    assert!(skill_content.contains("Do not output raw `beatPlan`, `timelinePlan`, or `step` DSL"));
+    assert!(skill_content.contains("Do not add whitespace around string enum values"));
+    assert!(skill_content.contains("1..120 ASCII snake_case"));
+    assert!(skill_content.contains(&format!(
+        "dance `durationMs`: integer {PUBLIC_DANCE_DURATION_MS_MIN}..{PUBLIC_DANCE_DURATION_MS_MAX}"
+    )));
+    assert!(skill_content.contains(&format!(
+        "patrolAroundScreen `loops`: integer {PUBLIC_PATROL_AROUND_SCREEN_LOOPS_MIN}..{PUBLIC_PATROL_AROUND_SCREEN_LOOPS_MAX}"
+    )));
+    assert!(skill_content.contains(&format!(
+        "peekBehindWindow `durationMs`: integer {PUBLIC_PEEK_BEHIND_WINDOW_DURATION_MS_MIN}..{PUBLIC_PEEK_BEHIND_WINDOW_DURATION_MS_MAX}"
+    )));
+    assert!(skill_content.contains("\"action\":\"macroIntent\""));
+    assert!(skill_content.contains("\"edge\":\"auto\""));
+    assert!(skill_content.contains("runtime choose"));
+    assert!(skill_content.contains("stand up, recover after a fall"));
+    assert!(skill_content.contains("- `sad` with `{}`"));
+    assert!(skill_content.contains("- `thinking` with `{}`"));
+    assert!(skill_content.contains("- `working` with `{}`"));
+    assert!(skill_content.contains("- `curious` with `{}`"));
+    assert!(skill_content.contains("- `awaitApproval` with `{}`"));
+    for macro_id in PUBLIC_MACRO_INTENT_IDS {
+        assert!(
+            skill_content.contains(&format!("- `{macro_id}`")),
+            "builtin host skill must document public macro intent {macro_id}"
+        );
+    }
+    assert!(skill_content.contains("sad, upset, disappointed"));
+    assert!(skill_content.contains("thinking, pondering, considering"));
+    assert!(skill_content.contains("working, focusing, busy"));
+    assert!(skill_content.contains("curious, interested, inspecting"));
+    assert!(skill_content.contains("waiting for user approval"));
     assert!(!skill_content.contains("name: lexora-buddy-animation"));
     assert!(!skill_content.contains("LEXORA_BUDDY_PET_SOCKET"));
     assert!(!skill_content.contains("native-pet.sock"));

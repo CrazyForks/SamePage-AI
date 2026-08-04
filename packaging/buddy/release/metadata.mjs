@@ -13,10 +13,12 @@ const repoUrl = 'https://github.com/haohaoxue-site/Lexora'
 export function createLexoraBuddyReleaseMetadata(input) {
   const productVersion = parseBuddyProductVersion(input.buddyVersionJson)
   const pkgVersion = parsePkgbuildValue(input.pkgbuild, 'pkgver')
+  const pkgRel = parsePkgbuildValue(input.pkgbuild, 'pkgrel')
   const expectedHash = parsePkgbuildArrayValue(input.pkgbuild, 'sha256sums_x86_64')
   const srcinfoSource = parseSrcinfoValue(input.srcinfo, 'source_x86_64')
   const [sourceFileName = '', sourceUrl = ''] = srcinfoSource.split('::')
   const srcinfoHash = parseSrcinfoValue(input.srcinfo, 'sha256sums_x86_64')
+  const srcinfoPkgRel = parseSrcinfoValue(input.srcinfo, 'pkgrel')
   const buddyPackage = JSON.parse(input.buddyPackageJson)
   const tauriConfig = JSON.parse(input.tauriConfigJson)
   const cargoVersion = parseCargoPackageVersion(input.cargoToml)
@@ -35,6 +37,7 @@ export function createLexoraBuddyReleaseMetadata(input) {
     expectedHash,
     expectedSourceFileName: `lexora-buddy-${productVersion}-amd64.deb`,
     expectedSourceUrl: `${repoUrl}/releases/download/${releaseTag}/${encodeURIComponent(releaseAssetName)}`,
+    pkgRel,
     pkgVersion,
     productVersion,
     productName,
@@ -44,6 +47,7 @@ export function createLexoraBuddyReleaseMetadata(input) {
     sourceFileName,
     sourceUrl,
     srcinfoHash,
+    srcinfoPkgRel,
     tauriVersion: tauriConfig.version,
   }
 }
@@ -53,8 +57,15 @@ export function validateLexoraBuddyReleaseMetadata(metadata) {
 
   if (!metadata.pkgVersion)
     errors.push('PKGBUILD pkgver is missing')
+  if (!metadata.pkgRel)
+    errors.push('PKGBUILD pkgrel is missing')
   if (!metadata.expectedHash)
     errors.push('PKGBUILD sha256sums_x86_64 is missing')
+  if (metadata.srcinfoPkgRel && metadata.pkgRel && metadata.srcinfoPkgRel !== metadata.pkgRel) {
+    errors.push(
+      `.SRCINFO pkgrel ${metadata.srcinfoPkgRel} does not match PKGBUILD ${metadata.pkgRel}`,
+    )
+  }
   if (metadata.srcinfoHash && metadata.expectedHash && metadata.srcinfoHash !== metadata.expectedHash) {
     errors.push(
       `.SRCINFO sha256sums_x86_64 ${metadata.srcinfoHash} does not match PKGBUILD ${metadata.expectedHash}`,
@@ -95,7 +106,8 @@ export function validateLexoraBuddyReleaseMetadata(metadata) {
 }
 
 export function selectLexoraBuddyPackageArchive(entries, metadata) {
-  const prefix = `lexora-buddy-bin-${metadata.pkgVersion}-`
+  const packageVersion = `${metadata.pkgVersion}-${metadata.pkgRel}`
+  const prefix = `lexora-buddy-bin-${packageVersion}-`
   const matches = entries
     .filter(entry => entry.startsWith(prefix))
     .filter(entry => /\.pkg\.tar\.(?:zst|xz|gz)$/.test(entry))
@@ -103,13 +115,13 @@ export function selectLexoraBuddyPackageArchive(entries, metadata) {
 
   if (matches.length === 0) {
     throw new Error(
-      `Unable to find lexora-buddy-bin pacman package archive for ${metadata.pkgVersion}`,
+      `Unable to find lexora-buddy-bin pacman package archive for ${packageVersion}`,
     )
   }
 
   if (matches.length > 1) {
     throw new Error(
-      `Expected one lexora-buddy-bin pacman package archive for ${metadata.pkgVersion}, found ${matches.length}`,
+      `Expected one lexora-buddy-bin pacman package archive for ${packageVersion}, found ${matches.length}`,
     )
   }
 

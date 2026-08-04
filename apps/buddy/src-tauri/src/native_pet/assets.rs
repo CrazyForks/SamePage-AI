@@ -1,12 +1,24 @@
 use gdk_pixbuf::prelude::*;
 use serde::Serialize;
+use std::collections::HashMap;
 
-use crate::error::{BuddyError, BuddyResult};
+use crate::{
+    choreography::{
+        affective::ResolveContext,
+        registry::{
+            ActionRegistry, ActionRuntimeCompletionFallbackProfile,
+            ActionRuntimeLocalInteractionProfile, ActionRuntimeProfile, ActionRuntimeRenderProfile,
+        },
+    },
+    error::{BuddyError, BuddyResult},
+};
 
 use super::{
     animation::{
-        NativePetAnimationSet, NativePetManifest, NATIVE_PET_ANIMATION_NAMES, PET_FRAME_HEIGHT,
-        PET_FRAME_WIDTH,
+        NativePetAnimationCompletionFallbackProfile, NativePetAnimationKey,
+        NativePetAnimationLocalInteractionProfile, NativePetAnimationRenderProfile,
+        NativePetAnimationRuntimeProfile, NativePetAnimationSet, NativePetAnimationTarget,
+        NativePetManifest, NativePetSpritesheetGeometry,
     },
     process::{parse_native_pet_control_message, NativePetControlMessage},
 };
@@ -27,7 +39,7 @@ pub(super) struct NativePetSmokeCheckReport {
     sheet_columns: usize,
     sheet_frame_count: usize,
     sheet_rows: usize,
-    validated_animations: Vec<&'static str>,
+    validated_animations: Vec<String>,
 }
 
 pub(super) fn load_default_pet_spritesheet() -> BuddyResult<gdk_pixbuf::Pixbuf> {
@@ -53,8 +65,9 @@ fn load_pixbuf_from_bytes(bytes: &[u8], name: &str) -> BuddyResult<gdk_pixbuf::P
 
 pub(super) fn load_default_pet_animation_set() -> BuddyResult<NativePetAnimationSet> {
     let manifest = load_default_pet_manifest()?;
+    let runtime_profiles = load_default_pet_animation_runtime_profiles()?;
 
-    NativePetAnimationSet::from_manifest(manifest)
+    NativePetAnimationSet::from_manifest_with_runtime_profiles(manifest, runtime_profiles)
 }
 
 fn load_default_pet_manifest() -> BuddyResult<NativePetManifest> {
@@ -62,20 +75,139 @@ fn load_default_pet_manifest() -> BuddyResult<NativePetManifest> {
         .map_err(|error| BuddyError::Runtime(error.to_string()))
 }
 
+fn load_default_pet_animation_runtime_profiles(
+) -> BuddyResult<HashMap<String, NativePetAnimationRuntimeProfile>> {
+    let registry = ActionRegistry::load_bundled()?;
+
+    Ok(registry
+        .runtime_profiles()
+        .map(|(animation_ref, profile)| {
+            (
+                animation_ref.to_owned(),
+                native_pet_runtime_profile_from_action_profile(profile),
+            )
+        })
+        .collect())
+}
+
+fn native_pet_runtime_profile_from_action_profile(
+    profile: ActionRuntimeProfile,
+) -> NativePetAnimationRuntimeProfile {
+    NativePetAnimationRuntimeProfile {
+        render_profile: native_pet_render_profile_from_action_profile(profile.render_profile),
+        local_interaction_profile: native_pet_local_interaction_profile_from_action_profile(
+            profile.local_interaction_profile,
+        ),
+        completion_fallback_profile: native_pet_completion_fallback_profile_from_action_profile(
+            profile.completion_fallback,
+        ),
+    }
+}
+
+fn native_pet_render_profile_from_action_profile(
+    profile: ActionRuntimeRenderProfile,
+) -> NativePetAnimationRenderProfile {
+    match profile {
+        ActionRuntimeRenderProfile::Idle => NativePetAnimationRenderProfile::Idle,
+        ActionRuntimeRenderProfile::GrabStart => NativePetAnimationRenderProfile::GrabStart,
+        ActionRuntimeRenderProfile::Drag => NativePetAnimationRenderProfile::Drag,
+        ActionRuntimeRenderProfile::RunLeft => NativePetAnimationRenderProfile::RunLeft,
+        ActionRuntimeRenderProfile::RunRight => NativePetAnimationRenderProfile::RunRight,
+        ActionRuntimeRenderProfile::Hover => NativePetAnimationRenderProfile::Hover,
+        ActionRuntimeRenderProfile::Wake => NativePetAnimationRenderProfile::Wake,
+        ActionRuntimeRenderProfile::Sleep => NativePetAnimationRenderProfile::Sleep,
+        ActionRuntimeRenderProfile::Approval => NativePetAnimationRenderProfile::Approval,
+        ActionRuntimeRenderProfile::Thinking => NativePetAnimationRenderProfile::Thinking,
+        ActionRuntimeRenderProfile::Working => NativePetAnimationRenderProfile::Working,
+        ActionRuntimeRenderProfile::Celebrate => NativePetAnimationRenderProfile::Celebrate,
+        ActionRuntimeRenderProfile::Dance => NativePetAnimationRenderProfile::Dance,
+        ActionRuntimeRenderProfile::Cast => NativePetAnimationRenderProfile::Cast,
+        ActionRuntimeRenderProfile::Sad => NativePetAnimationRenderProfile::Sad,
+        ActionRuntimeRenderProfile::Reassure => NativePetAnimationRenderProfile::Reassure,
+        ActionRuntimeRenderProfile::Explain => NativePetAnimationRenderProfile::Explain,
+        ActionRuntimeRenderProfile::Curious => NativePetAnimationRenderProfile::Curious,
+        ActionRuntimeRenderProfile::Tap => NativePetAnimationRenderProfile::Tap,
+        ActionRuntimeRenderProfile::TripFall => NativePetAnimationRenderProfile::TripFall,
+        ActionRuntimeRenderProfile::Fallen => NativePetAnimationRenderProfile::Fallen,
+        ActionRuntimeRenderProfile::FallenGetUp => NativePetAnimationRenderProfile::FallenGetUp,
+        ActionRuntimeRenderProfile::StumbleRecover => {
+            NativePetAnimationRenderProfile::StumbleRecover
+        }
+    }
+}
+
+fn native_pet_completion_fallback_profile_from_action_profile(
+    profile: ActionRuntimeCompletionFallbackProfile,
+) -> NativePetAnimationCompletionFallbackProfile {
+    match profile {
+        ActionRuntimeCompletionFallbackProfile::Default => {
+            NativePetAnimationCompletionFallbackProfile::Default
+        }
+        ActionRuntimeCompletionFallbackProfile::Idle => {
+            NativePetAnimationCompletionFallbackProfile::Idle
+        }
+        ActionRuntimeCompletionFallbackProfile::Sleep => {
+            NativePetAnimationCompletionFallbackProfile::Sleep
+        }
+        ActionRuntimeCompletionFallbackProfile::FallenIdleLeft => {
+            NativePetAnimationCompletionFallbackProfile::FallenIdleLeft
+        }
+        ActionRuntimeCompletionFallbackProfile::FallenIdleRight => {
+            NativePetAnimationCompletionFallbackProfile::FallenIdleRight
+        }
+    }
+}
+
+fn native_pet_local_interaction_profile_from_action_profile(
+    profile: ActionRuntimeLocalInteractionProfile,
+) -> NativePetAnimationLocalInteractionProfile {
+    match profile {
+        ActionRuntimeLocalInteractionProfile::None => {
+            NativePetAnimationLocalInteractionProfile::None
+        }
+        ActionRuntimeLocalInteractionProfile::FallenIdleLeft => {
+            NativePetAnimationLocalInteractionProfile::FallenIdleLeft
+        }
+        ActionRuntimeLocalInteractionProfile::FallenIdleRight => {
+            NativePetAnimationLocalInteractionProfile::FallenIdleRight
+        }
+        ActionRuntimeLocalInteractionProfile::FiniteScriptedAction => {
+            NativePetAnimationLocalInteractionProfile::FiniteScriptedAction
+        }
+    }
+}
+
+pub(in crate::native_pet) fn native_pet_action_target_from_registry(
+    registry: &ActionRegistry,
+    animations: &NativePetAnimationSet,
+    action_id: &str,
+) -> BuddyResult<NativePetAnimationTarget> {
+    let resolution = registry.resolve_play_action(action_id, &ResolveContext::default())?;
+    let animation = NativePetAnimationKey::parse(&resolution.animation_ref).ok_or_else(|| {
+        BuddyError::Runtime(format!(
+            "native pet action resolved invalid animationRef: {} -> {}",
+            action_id, resolution.animation_ref
+        ))
+    })?;
+
+    animations.animation_target_for_key(&animation)
+}
+
 pub(super) fn create_native_pet_smoke_check_report() -> BuddyResult<NativePetSmokeCheckReport> {
     let manifest = load_default_pet_manifest()?;
-    let sheet_columns = manifest.sheet.columns;
-    let sheet_rows = manifest.sheet.rows;
+    let geometry = NativePetSpritesheetGeometry::from_manifest(&manifest)?;
+    let sheet_columns = geometry.sheet_columns();
+    let sheet_rows = geometry.sheet_rows();
     let (sheet_width, sheet_height) = default_pet_spritesheet_size_from_webp()?;
     let animations = NativePetAnimationSet::from_manifest(manifest)?;
-    let validated_animations = validate_native_pet_control_messages()?;
+    let validated_animations = validate_native_pet_control_messages(&animations)?;
 
-    if sheet_width != PET_FRAME_WIDTH * sheet_columns as i32 {
+    if sheet_width != geometry.sheet_pixel_width()? {
         return Err(BuddyError::Runtime(
             "native pet spritesheet width does not match manifest".to_owned(),
         ));
     }
-    if sheet_height != PET_FRAME_HEIGHT * sheet_rows as i32 {
+    if sheet_height != geometry.sheet_pixel_height()? {
         return Err(BuddyError::Runtime(
             "native pet spritesheet height does not match manifest".to_owned(),
         ));
@@ -83,8 +215,8 @@ pub(super) fn create_native_pet_smoke_check_report() -> BuddyResult<NativePetSmo
 
     Ok(NativePetSmokeCheckReport {
         animation_count: animations.len(),
-        frame_height: PET_FRAME_HEIGHT,
-        frame_width: PET_FRAME_WIDTH,
+        frame_height: geometry.frame_height(),
+        frame_width: geometry.frame_width(),
         ok: true,
         sheet_columns,
         sheet_frame_count: sheet_columns * sheet_rows,
@@ -93,19 +225,22 @@ pub(super) fn create_native_pet_smoke_check_report() -> BuddyResult<NativePetSmo
     })
 }
 
-fn validate_native_pet_control_messages() -> BuddyResult<Vec<&'static str>> {
-    let mut validated_animations = Vec::with_capacity(NATIVE_PET_ANIMATION_NAMES.len());
+fn validate_native_pet_control_messages(
+    animations: &NativePetAnimationSet,
+) -> BuddyResult<Vec<String>> {
+    let mut validated_animations = Vec::with_capacity(animations.len());
 
-    for animation in NATIVE_PET_ANIMATION_NAMES {
-        let line = format!("animation:{}", animation.manifest_key());
+    for animation in animations.animation_names() {
+        let line = format!("animation:{animation}");
         match parse_native_pet_control_message(&line) {
-            Some(NativePetControlMessage::SetAnimation(parsed)) if parsed == animation => {
-                validated_animations.push(animation.manifest_key());
+            Some(NativePetControlMessage::SetAnimation(parsed))
+                if parsed.manifest_key() == animation =>
+            {
+                validated_animations.push(animation.to_owned());
             }
             _ => {
                 return Err(BuddyError::Runtime(format!(
-                    "native pet animation control message failed: {}",
-                    animation.manifest_key(),
+                    "native pet animation control message failed: {animation}",
                 )));
             }
         }
@@ -199,28 +334,4 @@ fn parse_lossy_webp_size(chunk: &[u8]) -> BuddyResult<(i32, i32)> {
 
 fn read_le24(bytes: &[u8]) -> u32 {
     bytes[0] as u32 | ((bytes[1] as u32) << 8) | ((bytes[2] as u32) << 16)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::{load_default_pet_manifest, load_default_pet_spritesheet};
-    use crate::native_pet::animation::{
-        PET_FRAME_HEIGHT, PET_FRAME_WIDTH, PET_SPRITESHEET_COLUMNS,
-    };
-
-    #[test]
-    fn loads_bundled_native_pet_spritesheet() {
-        let manifest = load_default_pet_manifest().expect("native pet manifest loads");
-        let sheet = load_default_pet_spritesheet().expect("native pet spritesheet loads");
-
-        assert_eq!(manifest.sheet.columns, PET_SPRITESHEET_COLUMNS);
-        assert_eq!(
-            sheet.width(),
-            PET_FRAME_WIDTH * manifest.sheet.columns as i32
-        );
-        assert_eq!(
-            sheet.height(),
-            PET_FRAME_HEIGHT * manifest.sheet.rows as i32
-        );
-    }
 }

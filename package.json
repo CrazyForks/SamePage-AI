@@ -37,6 +37,7 @@
     "check:buddy:external": "node packaging/buddy/release/verify-external-readiness.mjs",
     "check:buddy:external:template": "node packaging/buddy/release/verify-external-readiness.mjs --print-evidence-template",
     "check:buddy:asset": "node packaging/buddy/release/verify-remote-asset.mjs",
+    "check:buddy:installed": "node packaging/buddy/release/installed-runtime-identity.mjs",
     "test": "pnpm -r test",
     "test:watch": "pnpm -r --parallel --if-present test:watch",
     "lint": "eslint apps packages",

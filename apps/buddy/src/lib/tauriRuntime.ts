@@ -1,5 +1,8 @@
 import type { BuddyAnimationName } from '@/pet/buddyAnimation'
-import type { BuddyNativePetHostAction } from '@/pet/buddyHostAction'
+import type {
+  BuddyChoreographyMacroIntentRuntimeFields,
+  BuddyChoreographyMacroIntentSourceRef,
+} from '@/pet/buddyHostAction'
 import { listen } from '@tauri-apps/api/event'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { invokeBuddyCommand, isTauriRuntime } from '@/lib/invokeClient'
@@ -170,6 +173,200 @@ export interface BuddyUsageSnapshot {
   totals: BuddyUsageTotals
   records: ReadonlyArray<BuddyUsageRecord>
   windows: ReadonlyArray<BuddyUsageWindow>
+}
+
+export type BuddyActionLogPlanStatus = 'completed' | 'failed' | 'rejected' | 'running' | 'deferred' | 'skipped' | 'interrupted'
+export type BuddyActionLogResultKind = 'normal' | 'fallback' | 'degraded' | 'interrupted'
+export type BuddyActionLogDetailStatus
+  = | 'running'
+    | 'completed'
+    | 'fallback'
+    | 'degraded'
+    | 'failed'
+    | 'interrupted'
+    | 'rejected'
+    | 'deferred'
+    | 'skipped'
+
+export type BuddyActionLogIndexStatus
+  = | 'fresh'
+    | 'catchingUp'
+    | 'rebuilding'
+    | 'stale'
+    | 'failed'
+
+export interface BuddyActionLogIndexState {
+  indexStale: boolean
+  indexStatus: BuddyActionLogIndexStatus
+  lastIndexedAt: string | null
+}
+
+export type BuddyChoreographyDevFixtureName = 'single-play-action' | 'ai-macro-demo'
+
+export interface BuddyChoreographyDevFixtureResult {
+  fixtureName: BuddyChoreographyDevFixtureName
+  planId: string
+  executed: boolean
+  admissionDecision: BuddyChoreographyAdmissionDecision
+}
+
+export type BuddyChoreographyAdmissionDecision = 'accepted' | 'preempted' | 'rejected' | 'deferred' | 'skipped'
+export type BuddyChoreographyMoveEdge = 'left' | 'top' | 'right' | 'bottom'
+export type BuddyChoreographyWindowAnchorEdge = 'auto' | BuddyChoreographyMoveEdge
+export type BuddyChoreographyWindowAnchorReveal = 'head'
+export interface BuddyChoreographyWindowSelector {
+  kind: 'activeWindow'
+}
+
+export type BuddyChoreographyMacroIntent
+  = | { macroId: 'celebrate', params: Record<string, never> }
+    | { macroId: 'dance', params: { durationMs: number } }
+    | { macroId: 'lieDown', params: Record<string, never> }
+    | { macroId: 'patrolAroundScreen', params: { loops: number } }
+    | { macroId: 'reassure', params: Record<string, never> }
+    | { macroId: 'sad', params: Record<string, never> }
+    | { macroId: 'thinking', params: Record<string, never> }
+    | { macroId: 'working', params: Record<string, never> }
+    | { macroId: 'curious', params: Record<string, never> }
+    | { macroId: 'awaitApproval', params: Record<string, never> }
+    | { macroId: 'getUp', params: { side: 'left' | 'right' } }
+    | { macroId: 'peekFromEdge', params: { edge: BuddyChoreographyMoveEdge } }
+    | {
+      macroId: 'peekBehindWindow'
+      params: {
+        windowSelector: BuddyChoreographyWindowSelector
+        edge: BuddyChoreographyWindowAnchorEdge
+        reveal: BuddyChoreographyWindowAnchorReveal
+        durationMs: number
+      }
+    }
+    | { macroId: 'cast', params: Record<string, never> }
+
+export interface BuddyChoreographyMacroIntentResult {
+  macroId: BuddyChoreographyMacroIntent['macroId']
+  planId: string
+  executed: boolean
+  admissionDecision: BuddyChoreographyAdmissionDecision
+}
+
+export type BuddyActionLogSourceRef
+  = | {
+    kind: 'conversationMessage'
+    conversationId: string
+    messageId: string
+    runId?: string | null
+  }
+  | {
+    kind: 'run'
+    runId: string
+    conversationId?: string | null
+  }
+  | {
+    kind: 'approval'
+    approvalId: string
+    runId?: string | null
+  }
+  | {
+    kind: 'presetBehavior'
+    presetBehaviorId: string
+    interactionId?: string | null
+    sessionId?: string | null
+  }
+  | {
+    kind: 'systemRecovery'
+    triggeredByPlanId: string
+    triggeredByStepId?: string | null
+    triggerReason: string
+  }
+  | {
+    kind: 'macroFallback'
+    triggeredByPlanId: string
+    triggeredByStepId: string
+    triggerReason: string
+    originalMacroId: string
+    fallbackMacroId: string
+  }
+  | {
+    kind: 'startupSystem'
+  }
+  | {
+    kind: 'devFixture'
+    fixtureName: string
+  }
+
+export interface BuddyActionLogPlanListRequest {
+  lastEventType?: string | null
+  lastReasonCode?: string | null
+  limit?: number
+  pageCursor?: string | null
+  planId?: string | null
+  resolvedActionId?: string | null
+  resolvedAnimationRef?: string | null
+  resultKind?: BuddyActionLogResultKind | null
+  sourceRefId?: string | null
+  sourceRefKind?: string | null
+  startedAtFrom?: string | null
+  startedAtTo?: string | null
+  status?: BuddyActionLogPlanStatus | null
+  triggerSource?: string | null
+}
+
+export interface BuddyActionLogPlanSummary {
+  planId: string
+  sourceRefKind: string
+  sourceRefId: string | null
+  sourceRef: BuddyActionLogSourceRef
+  sourceDisplay: BuddyActionLogSourceDisplay | null
+  status: string
+  startedAt: string | null
+  completedAt: string | null
+  lastEventType: string
+  lastReasonCode: string
+  detailStatus: BuddyActionLogDetailStatus
+  detailReasonCode: string
+  resolvedActionId: string | null
+  resolvedAnimationRef: string | null
+  resultKind: BuddyActionLogResultKind
+}
+
+export interface BuddyActionLogSourceDisplay {
+  kind: string
+  title: string
+  subtitle: string | null
+  missing: boolean
+}
+
+export interface BuddyActionLogPlanList extends BuddyActionLogIndexState {
+  items: ReadonlyArray<BuddyActionLogPlanSummary>
+  nextPageCursor: string | null
+  hasMore: boolean
+}
+
+export interface BuddyActionLogStepDetail {
+  stepId: string
+  status: string
+  reasonCode: string
+  stepKind: string | null
+  targetLabel: string | null
+  resolvedActionId: string | null
+  resolvedAnimationRef: string | null
+  resolvedAt: string | null
+  completedAt: string | null
+  failedAt: string | null
+  durationMs: number | null
+  elapsedMs: number | null
+  eventCount: number
+}
+
+export interface BuddyActionLogPlanDetail extends BuddyActionLogIndexState {
+  plan: BuddyActionLogPlanSummary
+  steps: ReadonlyArray<BuddyActionLogStepDetail>
+  recoveryPlans: ReadonlyArray<BuddyActionLogRelatedPlanDetail>
+}
+
+export interface BuddyActionLogRelatedPlanDetail {
+  plan: BuddyActionLogPlanSummary
+  steps: ReadonlyArray<BuddyActionLogStepDetail>
 }
 
 export interface CreateBuddyConversationRequest {
@@ -1054,6 +1251,51 @@ export async function listBuddyRunEventSummaries(options: {
   )
 }
 
+export async function listBuddyActionLogPlans(
+  request: BuddyActionLogPlanListRequest = {},
+): Promise<BuddyActionLogPlanList> {
+  if (!isTauriRuntime()) {
+    return {
+      items: [],
+      nextPageCursor: null,
+      hasMore: false,
+      indexStale: false,
+      indexStatus: 'fresh',
+      lastIndexedAt: null,
+    }
+  }
+
+  return invokeBuddyCommand<BuddyActionLogPlanList>('list_buddy_action_log_plans', {
+    request: {
+      lastEventType: request.lastEventType ?? null,
+      lastReasonCode: request.lastReasonCode ?? null,
+      limit: request.limit ?? 50,
+      pageCursor: request.pageCursor ?? null,
+      planId: request.planId ?? null,
+      resolvedActionId: request.resolvedActionId ?? null,
+      resolvedAnimationRef: request.resolvedAnimationRef ?? null,
+      resultKind: request.resultKind ?? null,
+      sourceRefId: request.sourceRefId ?? null,
+      sourceRefKind: request.sourceRefKind ?? null,
+      startedAtFrom: request.startedAtFrom ?? null,
+      startedAtTo: request.startedAtTo ?? null,
+      status: request.status ?? null,
+      triggerSource: request.triggerSource ?? null,
+    },
+  })
+}
+
+export async function getBuddyActionLogPlanDetail(
+  planId: string,
+): Promise<BuddyActionLogPlanDetail> {
+  assertDesktopCommandAvailable()
+
+  return invokeBuddyCommand<BuddyActionLogPlanDetail>(
+    'get_buddy_action_log_plan_detail',
+    { planId },
+  )
+}
+
 export async function listBuddyConversationRunEvents(options: {
   conversationId: string
   afterId?: number | null
@@ -1195,13 +1437,38 @@ export async function setBuddyNativePetAnimation(
   await invokeBuddyCommand<void>('set_buddy_native_pet_animation', { animation })
 }
 
-export async function controlBuddyNativePetHostAction(
-  action: BuddyNativePetHostAction,
-): Promise<void> {
-  if (!isTauriRuntime())
-    return
+export async function runBuddyChoreographyDevFixture(
+  fixtureName: BuddyChoreographyDevFixtureName,
+): Promise<BuddyChoreographyDevFixtureResult> {
+  assertDesktopCommandAvailable()
 
-  await invokeBuddyCommand<void>('control_buddy_native_pet_host_action', { action })
+  return invokeBuddyCommand<BuddyChoreographyDevFixtureResult>('runChoreographyDevFixture', {
+    request: { fixtureName },
+  })
+}
+
+export async function runBuddyChoreographyMacroIntent(
+  intent: BuddyChoreographyMacroIntent,
+  sourceRef?: BuddyChoreographyMacroIntentSourceRef | null,
+  runtime?: BuddyChoreographyMacroIntentRuntimeFields | null,
+): Promise<BuddyChoreographyMacroIntentResult> {
+  assertDesktopCommandAvailable()
+
+  const request: {
+    intent: BuddyChoreographyMacroIntent
+    sourceRef: BuddyChoreographyMacroIntentSourceRef | null
+    triggerSource?: 'attentionSystem'
+  } = {
+    intent,
+    sourceRef: sourceRef ?? null,
+  }
+
+  if (sourceRef && runtime?.priority === 'urgent')
+    request.triggerSource = 'attentionSystem'
+
+  return invokeBuddyCommand<BuddyChoreographyMacroIntentResult>('runChoreographyMacroIntent', {
+    request,
+  })
 }
 
 function assertDesktopCommandAvailable() {

@@ -15,7 +15,7 @@ fn appends_host_action_event_from_streamed_message_delta() {
             run.id.clone(),
             "message.delta",
             serde_json::json!({
-                "delta": "处理中 <lexora_buddy_host_action>{\"action\":\"move\",\"target\":{\"kind\":\"edge\",\"edge\":\"left\"},\"after\":\"celebrate\"}</lexora_buddy_host_action>",
+                "delta": "处理中 <lexora_buddy_host_action>{\"version\":1,\"action\":\"macroIntent\",\"intent\":{\"macroId\":\"dance\",\"params\":{\"durationMs\":2500}}}</lexora_buddy_host_action>",
                 "itemId": "message-1",
                 "protocol": "codex_app_server",
                 "threadId": "thread-1",
@@ -50,10 +50,16 @@ fn appends_host_action_event_from_streamed_message_delta() {
         .find(|event| event.event_type == "host.action")
         .expect("host action event");
 
-    assert_eq!(host_action_event.payload["action"], "move");
-    assert_eq!(host_action_event.payload["target"]["kind"], "edge");
-    assert_eq!(host_action_event.payload["target"]["edge"], "left");
-    assert_eq!(host_action_event.payload["after"], "celebrate");
+    assert_eq!(host_action_event.payload["action"], "macroIntent");
+    assert_eq!(
+        host_action_event.payload["source"],
+        "buddy_builtin_host_skill"
+    );
+    assert_eq!(host_action_event.payload["intent"]["macroId"], "dance");
+    assert_eq!(
+        host_action_event.payload["intent"]["params"]["durationMs"],
+        2500
+    );
 }
 
 fn create_host_action_test_storage() -> BuddyStorage {

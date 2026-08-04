@@ -2,7 +2,7 @@ use std::sync::mpsc;
 
 #[cfg(unix)]
 use std::{
-    fs,
+    fs, io,
     io::{BufRead, BufReader, Write},
     os::unix::{
         fs::{FileTypeExt, PermissionsExt},
@@ -27,28 +27,32 @@ const NATIVE_PET_RUNTIME_DIR_NAME: &str = "lexora-buddy";
 const NATIVE_PET_CONTROL_SOCKET_FILE_NAME: &str = "native-pet.sock";
 #[cfg(unix)]
 const NATIVE_PET_CONTROL_RESPONSE_TIMEOUT_MS: u64 = 1_500;
+#[cfg(unix)]
+const NATIVE_PET_CONTROL_STATE_QUERY_LINE: &[u8] = b"{\"type\":\"state\"}\n";
 
 #[cfg(unix)]
 pub(super) fn spawn_native_pet_socket_control_reader(
     sender: mpsc::Sender<NativePetControlRequest>,
-) {
+) -> BuddyResult<()> {
+    let listener = bind_native_pet_control_socket_listener()?;
     thread::spawn(move || {
-        if let Err(error) = run_native_pet_socket_control_reader(sender) {
+        if let Err(error) = run_native_pet_socket_control_reader(listener, sender) {
             eprintln!("Lexora Buddy native pet control socket failed: {error}");
         }
     });
+
+    Ok(())
 }
 
 #[cfg(not(unix))]
 pub(super) fn spawn_native_pet_socket_control_reader(
     _sender: mpsc::Sender<NativePetControlRequest>,
-) {
+) -> BuddyResult<()> {
+    Ok(())
 }
 
 #[cfg(unix)]
-fn run_native_pet_socket_control_reader(
-    sender: mpsc::Sender<NativePetControlRequest>,
-) -> BuddyResult<()> {
+fn bind_native_pet_control_socket_listener() -> BuddyResult<UnixListener> {
     let socket_path = native_pet_control_socket_path()?;
     let uses_default_socket_path = std::env::var_os(NATIVE_PET_CONTROL_SOCKET_ENV).is_none();
     if let Some(parent) = socket_path.parent() {
@@ -74,7 +78,14 @@ fn run_native_pet_socket_control_reader(
         fs::remove_file(&socket_path)?;
     }
 
-    let listener = UnixListener::bind(&socket_path)?;
+    Ok(UnixListener::bind(&socket_path)?)
+}
+
+#[cfg(unix)]
+fn run_native_pet_socket_control_reader(
+    listener: UnixListener,
+    sender: mpsc::Sender<NativePetControlRequest>,
+) -> BuddyResult<()> {
     for stream in listener.incoming() {
         let stream = match stream {
             Ok(stream) => stream,
@@ -94,6 +105,56 @@ fn run_native_pet_socket_control_reader(
 #[cfg(unix)]
 fn native_pet_control_socket_is_active(socket_path: &Path) -> bool {
     UnixStream::connect(socket_path).is_ok()
+}
+
+#[cfg(unix)]
+pub(super) fn query_native_pet_local_interaction_active() -> BuddyResult<Option<bool>> {
+    let socket_path = native_pet_control_socket_path()?;
+    let mut stream = match UnixStream::connect(&socket_path) {
+        Ok(stream) => stream,
+        Err(error) if native_pet_control_socket_absent(&error) => return Ok(None),
+        Err(error) => return Err(error.into()),
+    };
+    let timeout = Some(Duration::from_millis(
+        NATIVE_PET_CONTROL_RESPONSE_TIMEOUT_MS,
+    ));
+    stream.set_read_timeout(timeout)?;
+    stream.set_write_timeout(timeout)?;
+    stream.write_all(NATIVE_PET_CONTROL_STATE_QUERY_LINE)?;
+    stream.flush()?;
+
+    let mut reader = BufReader::new(stream);
+    let mut line = String::new();
+    if reader.read_line(&mut line)? == 0 {
+        return Ok(None);
+    }
+    let response = serde_json::from_str::<serde_json::Value>(&line)?;
+
+    Ok(native_pet_control_state_local_interaction_active(&response))
+}
+
+#[cfg(not(unix))]
+pub(super) fn query_native_pet_local_interaction_active() -> BuddyResult<Option<bool>> {
+    Ok(None)
+}
+
+#[cfg(unix)]
+fn native_pet_control_socket_absent(error: &io::Error) -> bool {
+    matches!(
+        error.kind(),
+        io::ErrorKind::NotFound | io::ErrorKind::ConnectionRefused
+    )
+}
+
+fn native_pet_control_state_local_interaction_active(response: &serde_json::Value) -> Option<bool> {
+    if response.get("ok").and_then(serde_json::Value::as_bool) == Some(false) {
+        return None;
+    }
+
+    response
+        .get("interaction")
+        .and_then(|interaction| interaction.get("active"))
+        .and_then(serde_json::Value::as_bool)
 }
 
 #[cfg(unix)]
@@ -216,6 +277,36 @@ mod tests {
     }
 
     #[test]
+    fn rejects_starting_control_reader_when_socket_is_already_active() {
+        use std::os::unix::net::UnixListener;
+
+        let _guard = ENV_LOCK.lock().expect("env lock");
+        let previous_socket_path = std::env::var_os(super::NATIVE_PET_CONTROL_SOCKET_ENV);
+        let socket_path = std::env::temp_dir().join(format!(
+            "lexora-buddy-native-pet-test-{}-reader-active.sock",
+            std::process::id(),
+        ));
+        let _ = std::fs::remove_file(&socket_path);
+        let listener = UnixListener::bind(&socket_path).expect("bind active test socket");
+        std::env::set_var(super::NATIVE_PET_CONTROL_SOCKET_ENV, &socket_path);
+        let (sender, _receiver) = std::sync::mpsc::channel();
+
+        let error = super::spawn_native_pet_socket_control_reader(sender)
+            .expect_err("active control socket should block a second reader");
+
+        assert!(error
+            .to_string()
+            .contains("native pet control socket is already active"));
+
+        drop(listener);
+        let _ = std::fs::remove_file(socket_path);
+        match previous_socket_path {
+            Some(value) => std::env::set_var(super::NATIVE_PET_CONTROL_SOCKET_ENV, value),
+            None => std::env::remove_var(super::NATIVE_PET_CONTROL_SOCKET_ENV),
+        }
+    }
+
+    #[test]
     fn defaults_native_pet_control_socket_to_xdg_runtime_dir() {
         let _guard = ENV_LOCK.lock().expect("env lock");
         let previous_runtime_dir = std::env::var_os("XDG_RUNTIME_DIR");
@@ -288,5 +379,33 @@ mod tests {
             Some(value) => std::env::set_var(super::NATIVE_PET_CONTROL_SOCKET_ENV, value),
             None => std::env::remove_var(super::NATIVE_PET_CONTROL_SOCKET_ENV),
         }
+    }
+
+    #[test]
+    fn parses_local_interaction_active_from_control_state_response() {
+        let response = serde_json::json!({
+            "ok": true,
+            "interaction": {
+                "active": true
+            }
+        });
+
+        assert_eq!(
+            super::native_pet_control_state_local_interaction_active(&response),
+            Some(true)
+        );
+    }
+
+    #[test]
+    fn ignores_failed_control_state_response_for_local_interaction_probe() {
+        let response = serde_json::json!({
+            "ok": false,
+            "error": "control_response_timeout"
+        });
+
+        assert_eq!(
+            super::native_pet_control_state_local_interaction_active(&response),
+            None
+        );
     }
 }

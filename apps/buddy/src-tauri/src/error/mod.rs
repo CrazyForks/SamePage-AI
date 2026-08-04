@@ -20,6 +20,9 @@ pub enum BuddyError {
     #[error("buddy state validation failed: {0}")]
     Validation(String),
 
+    #[error("buddy state validation failed: unsupported {scope} capability: {capability}")]
+    UnsupportedCapability { scope: String, capability: String },
+
     #[error("codex runtime failed: {0}")]
     Codex(String),
 

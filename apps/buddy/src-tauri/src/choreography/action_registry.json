@@ -1,0 +1,1174 @@
+{
+  "registryVersion": "2026-07-14",
+  "actions": [
+    {
+      "actionId": "idle",
+      "animationRef": "idle",
+      "aliases": [
+        "standby"
+      ],
+      "category": "lifecycleIdle",
+      "playbackKind": "idleLoop",
+      "placement": "currentPosition",
+      "movement": "none",
+      "startPose": "idleCompatible",
+      "endPose": "idleCompatible",
+      "idleCompatible": true,
+      "facing": "front",
+      "locomotionProfile": null,
+      "interruptPolicy": "interruptible",
+      "fallbackChain": [
+        "idle"
+      ],
+      "moodEnergyAffinity": {
+        "mood": [
+          "neutral",
+          "happy",
+          "sad"
+        ],
+        "energy": [
+          "low",
+          "medium",
+          "high"
+        ]
+      },
+      "aiVisibility": "macroOnly",
+      "presetVisibility": "enabled",
+      "requiredCapabilities": [],
+      "deterministicSortWeight": 10,
+      "runtimeProfile": {
+        "renderProfile": "idle",
+        "localInteractionProfile": "none"
+      }
+    },
+    {
+      "actionId": "wake",
+      "animationRef": "wake",
+      "aliases": [
+        "wake_up"
+      ],
+      "category": "lifecycleWake",
+      "playbackKind": "once",
+      "placement": "currentPosition",
+      "movement": "none",
+      "startPose": "resting",
+      "endPose": "idleCompatible",
+      "idleCompatible": true,
+      "facing": "front",
+      "locomotionProfile": null,
+      "interruptPolicy": "finishStep",
+      "fallbackChain": [
+        "idle"
+      ],
+      "moodEnergyAffinity": {
+        "mood": [
+          "neutral",
+          "happy",
+          "sad"
+        ],
+        "energy": [
+          "low",
+          "medium",
+          "high"
+        ]
+      },
+      "aiVisibility": "macroOnly",
+      "presetVisibility": "enabled",
+      "requiredCapabilities": [],
+      "deterministicSortWeight": 20,
+      "runtimeProfile": {
+        "renderProfile": "wake",
+        "localInteractionProfile": "finiteScriptedAction",
+        "completionFallback": "idle"
+      }
+    },
+    {
+      "actionId": "celebrate",
+      "animationRef": "celebrate",
+      "aliases": [
+        "success",
+        "done"
+      ],
+      "category": "oneShotReaction",
+      "playbackKind": "once",
+      "placement": "currentPosition",
+      "movement": "none",
+      "startPose": "idleCompatible",
+      "endPose": "idleCompatible",
+      "idleCompatible": true,
+      "facing": "front",
+      "locomotionProfile": null,
+      "interruptPolicy": "finishStep",
+      "fallbackChain": [
+        "idle"
+      ],
+      "moodEnergyAffinity": {
+        "mood": [
+          "neutral",
+          "happy"
+        ],
+        "energy": [
+          "medium",
+          "high"
+        ]
+      },
+      "aiVisibility": "macroOnly",
+      "presetVisibility": "enabled",
+      "requiredCapabilities": [],
+      "deterministicSortWeight": 100,
+      "runtimeProfile": {
+        "renderProfile": "celebrate",
+        "localInteractionProfile": "finiteScriptedAction",
+        "completionFallback": "idle"
+      }
+    },
+    {
+      "actionId": "sleep_enter",
+      "animationRef": "sleep_enter",
+      "aliases": [
+        "sleep.enter"
+      ],
+      "category": "lifecycleRest",
+      "playbackKind": "once",
+      "placement": "currentPosition",
+      "movement": "none",
+      "startPose": "idleCompatible",
+      "endPose": "resting",
+      "idleCompatible": true,
+      "facing": "front",
+      "locomotionProfile": null,
+      "interruptPolicy": "finishStep",
+      "fallbackChain": [
+        "sleep",
+        "idle"
+      ],
+      "moodEnergyAffinity": {
+        "mood": [
+          "neutral",
+          "sad"
+        ],
+        "energy": [
+          "low",
+          "medium"
+        ]
+      },
+      "aiVisibility": "hidden",
+      "presetVisibility": "hidden",
+      "requiredCapabilities": [],
+      "deterministicSortWeight": 105,
+      "runtimeProfile": {
+        "renderProfile": "sleep",
+        "localInteractionProfile": "finiteScriptedAction",
+        "completionFallback": "sleep"
+      }
+    },
+    {
+      "actionId": "sleep",
+      "animationRef": "sleep",
+      "aliases": [
+        "rest",
+        "lie_down"
+      ],
+      "category": "lifecycleRest",
+      "playbackKind": "idleLoop",
+      "placement": "currentPosition",
+      "movement": "none",
+      "startPose": "idleCompatible",
+      "endPose": "resting",
+      "idleCompatible": true,
+      "facing": "front",
+      "locomotionProfile": null,
+      "interruptPolicy": "interruptible",
+      "fallbackChain": [
+        "wake",
+        "idle"
+      ],
+      "moodEnergyAffinity": {
+        "mood": [
+          "neutral",
+          "sad"
+        ],
+        "energy": [
+          "low",
+          "medium"
+        ]
+      },
+      "aiVisibility": "macroOnly",
+      "presetVisibility": "enabled",
+      "requiredCapabilities": [],
+      "deterministicSortWeight": 110,
+      "runtimeProfile": {
+        "renderProfile": "sleep",
+        "localInteractionProfile": "none"
+      }
+    },
+    {
+      "actionId": "reassure",
+      "animationRef": "reassure",
+      "aliases": [
+        "comfort",
+        "encourage"
+      ],
+      "category": "emotionalSupport",
+      "playbackKind": "once",
+      "placement": "currentPosition",
+      "movement": "none",
+      "startPose": "idleCompatible",
+      "endPose": "idleCompatible",
+      "idleCompatible": true,
+      "facing": "front",
+      "locomotionProfile": null,
+      "interruptPolicy": "finishStep",
+      "fallbackChain": [
+        "idle"
+      ],
+      "moodEnergyAffinity": {
+        "mood": [
+          "neutral",
+          "sad"
+        ],
+        "energy": [
+          "low",
+          "medium"
+        ]
+      },
+      "aiVisibility": "macroOnly",
+      "presetVisibility": "enabled",
+      "requiredCapabilities": [],
+      "deterministicSortWeight": 120,
+      "runtimeProfile": {
+        "renderProfile": "reassure",
+        "localInteractionProfile": "finiteScriptedAction",
+        "completionFallback": "idle"
+      }
+    },
+    {
+      "actionId": "peek_from_edge",
+      "animationRef": "curious",
+      "aliases": [
+        "peek",
+        "curious"
+      ],
+      "category": "presencePlay",
+      "playbackKind": "once",
+      "placement": "currentPosition",
+      "movement": "none",
+      "startPose": "idleCompatible",
+      "endPose": "idleCompatible",
+      "idleCompatible": true,
+      "facing": "front",
+      "locomotionProfile": null,
+      "interruptPolicy": "finishStep",
+      "fallbackChain": [
+        "idle"
+      ],
+      "moodEnergyAffinity": {
+        "mood": [
+          "neutral",
+          "happy"
+        ],
+        "energy": [
+          "medium",
+          "high"
+        ]
+      },
+      "aiVisibility": "macroOnly",
+      "presetVisibility": "enabled",
+      "requiredCapabilities": [],
+      "deterministicSortWeight": 130,
+      "runtimeProfile": {
+        "renderProfile": "curious",
+        "localInteractionProfile": "finiteScriptedAction",
+        "completionFallback": "idle"
+      }
+    },
+    {
+      "actionId": "curious",
+      "animationRef": "curious",
+      "aliases": [
+        "wonder"
+      ],
+      "category": "presenceReaction",
+      "playbackKind": "once",
+      "placement": "currentPosition",
+      "movement": "none",
+      "startPose": "idleCompatible",
+      "endPose": "idleCompatible",
+      "idleCompatible": true,
+      "facing": "front",
+      "locomotionProfile": null,
+      "interruptPolicy": "finishStep",
+      "fallbackChain": [
+        "idle"
+      ],
+      "moodEnergyAffinity": {
+        "mood": [
+          "neutral",
+          "happy"
+        ],
+        "energy": [
+          "medium",
+          "high"
+        ]
+      },
+      "aiVisibility": "macroOnly",
+      "presetVisibility": "enabled",
+      "requiredCapabilities": [],
+      "deterministicSortWeight": 131,
+      "runtimeProfile": {
+        "renderProfile": "curious",
+        "localInteractionProfile": "finiteScriptedAction",
+        "completionFallback": "idle"
+      }
+    },
+    {
+      "actionId": "cast",
+      "animationRef": "cast",
+      "aliases": [
+        "spell",
+        "magic"
+      ],
+      "category": "expressiveAction",
+      "playbackKind": "once",
+      "placement": "currentPosition",
+      "movement": "none",
+      "startPose": "idleCompatible",
+      "endPose": "idleCompatible",
+      "idleCompatible": true,
+      "facing": "front",
+      "locomotionProfile": null,
+      "interruptPolicy": "finishStep",
+      "fallbackChain": [
+        "celebrate"
+      ],
+      "moodEnergyAffinity": {
+        "mood": [
+          "neutral",
+          "happy"
+        ],
+        "energy": [
+          "medium",
+          "high"
+        ]
+      },
+      "aiVisibility": "macroOnly",
+      "presetVisibility": "enabled",
+      "requiredCapabilities": [],
+      "deterministicSortWeight": 140,
+      "runtimeProfile": {
+        "renderProfile": "cast",
+        "localInteractionProfile": "finiteScriptedAction",
+        "completionFallback": "idle"
+      }
+    },
+    {
+      "actionId": "explain",
+      "animationRef": "explain",
+      "aliases": [
+        "describe"
+      ],
+      "category": "expressiveAction",
+      "playbackKind": "loopForDuration",
+      "placement": "currentPosition",
+      "movement": "none",
+      "startPose": "idleCompatible",
+      "endPose": "idleCompatible",
+      "idleCompatible": true,
+      "facing": "front",
+      "locomotionProfile": null,
+      "interruptPolicy": "interruptible",
+      "fallbackChain": [
+        "idle"
+      ],
+      "moodEnergyAffinity": {
+        "mood": [
+          "neutral",
+          "happy"
+        ],
+        "energy": [
+          "medium",
+          "high"
+        ]
+      },
+      "aiVisibility": "macroOnly",
+      "presetVisibility": "enabled",
+      "requiredCapabilities": [],
+      "deterministicSortWeight": 141,
+      "runtimeProfile": {
+        "renderProfile": "explain",
+        "localInteractionProfile": "none"
+      }
+    },
+    {
+      "actionId": "run.left",
+      "animationRef": "run_left",
+      "aliases": [
+        "run_left",
+        "move_left"
+      ],
+      "category": "locomotion",
+      "playbackKind": "loopForDuration",
+      "placement": "currentPosition",
+      "movement": "locomotion",
+      "startPose": "idleCompatible",
+      "endPose": "idleCompatible",
+      "idleCompatible": true,
+      "facing": "left",
+      "locomotionProfile": {
+        "gait": "run",
+        "direction": "left",
+        "speedProfile": "normal"
+      },
+      "interruptPolicy": "interruptible",
+      "fallbackChain": [
+        "idle"
+      ],
+      "moodEnergyAffinity": {
+        "mood": [
+          "neutral",
+          "happy"
+        ],
+        "energy": [
+          "medium",
+          "high"
+        ]
+      },
+      "aiVisibility": "macroOnly",
+      "presetVisibility": "enabled",
+      "requiredCapabilities": [],
+      "deterministicSortWeight": 150,
+      "runtimeProfile": {
+        "renderProfile": "runLeft",
+        "localInteractionProfile": "none"
+      }
+    },
+    {
+      "actionId": "run.right",
+      "animationRef": "run_right",
+      "aliases": [
+        "run_right",
+        "move_right"
+      ],
+      "category": "locomotion",
+      "playbackKind": "loopForDuration",
+      "placement": "currentPosition",
+      "movement": "locomotion",
+      "startPose": "idleCompatible",
+      "endPose": "idleCompatible",
+      "idleCompatible": true,
+      "facing": "right",
+      "locomotionProfile": {
+        "gait": "run",
+        "direction": "right",
+        "speedProfile": "normal"
+      },
+      "interruptPolicy": "interruptible",
+      "fallbackChain": [
+        "idle"
+      ],
+      "moodEnergyAffinity": {
+        "mood": [
+          "neutral",
+          "happy"
+        ],
+        "energy": [
+          "medium",
+          "high"
+        ]
+      },
+      "aiVisibility": "macroOnly",
+      "presetVisibility": "enabled",
+      "requiredCapabilities": [],
+      "deterministicSortWeight": 151,
+      "runtimeProfile": {
+        "renderProfile": "runRight",
+        "localInteractionProfile": "none"
+      }
+    },
+    {
+      "actionId": "drag",
+      "animationRef": "drag",
+      "aliases": [
+        "grab",
+        "dragging"
+      ],
+      "category": "interactionHold",
+      "playbackKind": "loopForDuration",
+      "placement": "currentPosition",
+      "movement": "none",
+      "startPose": "idleCompatible",
+      "endPose": "grabbed",
+      "idleCompatible": false,
+      "facing": "front",
+      "locomotionProfile": null,
+      "interruptPolicy": "interruptible",
+      "fallbackChain": [
+        "idle"
+      ],
+      "moodEnergyAffinity": {
+        "mood": [
+          "neutral",
+          "happy",
+          "sad"
+        ],
+        "energy": [
+          "low",
+          "medium",
+          "high"
+        ]
+      },
+      "aiVisibility": "hidden",
+      "presetVisibility": "enabled",
+      "requiredCapabilities": [],
+      "deterministicSortWeight": 160,
+      "runtimeProfile": {
+        "renderProfile": "drag",
+        "localInteractionProfile": "none"
+      }
+    },
+    {
+      "actionId": "grab_start",
+      "animationRef": "grab_start",
+      "aliases": [
+        "pickup"
+      ],
+      "category": "interactionResponse",
+      "playbackKind": "once",
+      "placement": "currentPosition",
+      "movement": "none",
+      "startPose": "idleCompatible",
+      "endPose": "grabbed",
+      "idleCompatible": false,
+      "facing": "front",
+      "locomotionProfile": null,
+      "interruptPolicy": "uninterruptibleShort",
+      "fallbackChain": [
+        "drag",
+        "idle"
+      ],
+      "moodEnergyAffinity": {
+        "mood": [
+          "neutral",
+          "happy",
+          "sad"
+        ],
+        "energy": [
+          "low",
+          "medium",
+          "high"
+        ]
+      },
+      "aiVisibility": "hidden",
+      "presetVisibility": "enabled",
+      "requiredCapabilities": [],
+      "deterministicSortWeight": 161,
+      "runtimeProfile": {
+        "renderProfile": "grabStart",
+        "localInteractionProfile": "none"
+      }
+    },
+    {
+      "actionId": "thinking",
+      "animationRef": "thinking",
+      "aliases": [
+        "think",
+        "reasoning"
+      ],
+      "category": "cognitiveState",
+      "playbackKind": "loopForDuration",
+      "placement": "currentPosition",
+      "movement": "none",
+      "startPose": "idleCompatible",
+      "endPose": "thinking",
+      "idleCompatible": true,
+      "facing": "front",
+      "locomotionProfile": null,
+      "interruptPolicy": "interruptible",
+      "fallbackChain": [
+        "idle"
+      ],
+      "moodEnergyAffinity": {
+        "mood": [
+          "neutral"
+        ],
+        "energy": [
+          "medium",
+          "high"
+        ]
+      },
+      "aiVisibility": "macroOnly",
+      "presetVisibility": "enabled",
+      "requiredCapabilities": [],
+      "deterministicSortWeight": 170,
+      "runtimeProfile": {
+        "renderProfile": "thinking",
+        "localInteractionProfile": "none"
+      }
+    },
+    {
+      "actionId": "approval",
+      "animationRef": "approval",
+      "aliases": [
+        "await_approval",
+        "waiting_for_approval"
+      ],
+      "category": "awaitingUser",
+      "playbackKind": "loopForDuration",
+      "placement": "currentPosition",
+      "movement": "none",
+      "startPose": "thinking",
+      "endPose": "approvalWait",
+      "idleCompatible": true,
+      "facing": "front",
+      "locomotionProfile": null,
+      "interruptPolicy": "interruptible",
+      "fallbackChain": [
+        "thinking",
+        "idle"
+      ],
+      "moodEnergyAffinity": {
+        "mood": [
+          "neutral"
+        ],
+        "energy": [
+          "medium"
+        ]
+      },
+      "aiVisibility": "macroOnly",
+      "presetVisibility": "enabled",
+      "requiredCapabilities": [],
+      "deterministicSortWeight": 171,
+      "runtimeProfile": {
+        "renderProfile": "approval",
+        "localInteractionProfile": "none"
+      }
+    },
+    {
+      "actionId": "sad",
+      "animationRef": "sad",
+      "aliases": [
+        "error",
+        "blocked"
+      ],
+      "category": "emotionalState",
+      "playbackKind": "loopForDuration",
+      "placement": "currentPosition",
+      "movement": "none",
+      "startPose": "idleCompatible",
+      "endPose": "sadHold",
+      "idleCompatible": true,
+      "facing": "front",
+      "locomotionProfile": null,
+      "interruptPolicy": "interruptible",
+      "fallbackChain": [
+        "reassure",
+        "idle"
+      ],
+      "moodEnergyAffinity": {
+        "mood": [
+          "sad",
+          "neutral"
+        ],
+        "energy": [
+          "low",
+          "medium"
+        ]
+      },
+      "aiVisibility": "macroOnly",
+      "presetVisibility": "enabled",
+      "requiredCapabilities": [],
+      "deterministicSortWeight": 172,
+      "runtimeProfile": {
+        "renderProfile": "sad",
+        "localInteractionProfile": "none"
+      }
+    },
+    {
+      "actionId": "working",
+      "animationRef": "working",
+      "aliases": [
+        "work",
+        "busy"
+      ],
+      "category": "workState",
+      "playbackKind": "loopForDuration",
+      "placement": "currentPosition",
+      "movement": "none",
+      "startPose": "idleCompatible",
+      "endPose": "working",
+      "idleCompatible": true,
+      "facing": "front",
+      "locomotionProfile": null,
+      "interruptPolicy": "interruptible",
+      "fallbackChain": [
+        "idle"
+      ],
+      "moodEnergyAffinity": {
+        "mood": [
+          "neutral",
+          "happy"
+        ],
+        "energy": [
+          "medium",
+          "high"
+        ]
+      },
+      "aiVisibility": "macroOnly",
+      "presetVisibility": "enabled",
+      "requiredCapabilities": [],
+      "deterministicSortWeight": 173,
+      "runtimeProfile": {
+        "renderProfile": "working",
+        "localInteractionProfile": "none"
+      }
+    },
+    {
+      "actionId": "tap",
+      "animationRef": "tap",
+      "aliases": [
+        "click",
+        "poke"
+      ],
+      "category": "interactionResponse",
+      "playbackKind": "once",
+      "placement": "currentPosition",
+      "movement": "none",
+      "startPose": "idleCompatible",
+      "endPose": "curious",
+      "idleCompatible": true,
+      "facing": "front",
+      "locomotionProfile": null,
+      "interruptPolicy": "finishStep",
+      "fallbackChain": [
+        "idle"
+      ],
+      "moodEnergyAffinity": {
+        "mood": [
+          "neutral",
+          "happy"
+        ],
+        "energy": [
+          "medium",
+          "high"
+        ]
+      },
+      "aiVisibility": "hidden",
+      "presetVisibility": "enabled",
+      "requiredCapabilities": [],
+      "deterministicSortWeight": 174,
+      "runtimeProfile": {
+        "renderProfile": "tap",
+        "localInteractionProfile": "finiteScriptedAction",
+        "completionFallback": "idle"
+      }
+    },
+    {
+      "actionId": "hover",
+      "animationRef": "hover",
+      "aliases": [
+        "pointer_hover"
+      ],
+      "category": "attentionHold",
+      "playbackKind": "loopForDuration",
+      "placement": "currentPosition",
+      "movement": "none",
+      "startPose": "curious",
+      "endPose": "curious",
+      "idleCompatible": true,
+      "facing": "front",
+      "locomotionProfile": null,
+      "interruptPolicy": "interruptible",
+      "fallbackChain": [
+        "idle"
+      ],
+      "moodEnergyAffinity": {
+        "mood": [
+          "neutral",
+          "happy"
+        ],
+        "energy": [
+          "medium",
+          "high"
+        ]
+      },
+      "aiVisibility": "hidden",
+      "presetVisibility": "enabled",
+      "requiredCapabilities": [],
+      "deterministicSortWeight": 175,
+      "runtimeProfile": {
+        "renderProfile": "hover",
+        "localInteractionProfile": "none"
+      }
+    },
+    {
+      "actionId": "throw_after_drag.fall.left",
+      "animationRef": "trip_fall_left",
+      "aliases": [
+        "throw_after_drag.fall"
+      ],
+      "category": "interactionResponse",
+      "playbackKind": "once",
+      "placement": "currentPosition",
+      "movement": "none",
+      "startPose": "dragRelease",
+      "endPose": "fallenLeft",
+      "idleCompatible": false,
+      "facing": "left",
+      "locomotionProfile": null,
+      "interruptPolicy": "finishStep",
+      "fallbackChain": [
+        "throw_after_drag.get_up.left",
+        "idle"
+      ],
+      "moodEnergyAffinity": {
+        "mood": [
+          "neutral",
+          "happy",
+          "sad"
+        ],
+        "energy": [
+          "low",
+          "medium",
+          "high"
+        ]
+      },
+      "aiVisibility": "hidden",
+      "presetVisibility": "enabled",
+      "requiredCapabilities": [],
+      "deterministicSortWeight": 200,
+      "runtimeProfile": {
+        "renderProfile": "tripFall",
+        "localInteractionProfile": "finiteScriptedAction",
+        "completionFallback": "fallenIdleLeft"
+      }
+    },
+    {
+      "actionId": "throw_after_drag.fall.right",
+      "animationRef": "trip_fall_right",
+      "aliases": [
+        "throw_after_drag.fall"
+      ],
+      "category": "interactionResponse",
+      "playbackKind": "once",
+      "placement": "currentPosition",
+      "movement": "none",
+      "startPose": "dragRelease",
+      "endPose": "fallenRight",
+      "idleCompatible": false,
+      "facing": "right",
+      "locomotionProfile": null,
+      "interruptPolicy": "finishStep",
+      "fallbackChain": [
+        "throw_after_drag.get_up.right",
+        "idle"
+      ],
+      "moodEnergyAffinity": {
+        "mood": [
+          "neutral",
+          "happy",
+          "sad"
+        ],
+        "energy": [
+          "low",
+          "medium",
+          "high"
+        ]
+      },
+      "aiVisibility": "hidden",
+      "presetVisibility": "enabled",
+      "requiredCapabilities": [],
+      "deterministicSortWeight": 201,
+      "runtimeProfile": {
+        "renderProfile": "tripFall",
+        "localInteractionProfile": "finiteScriptedAction",
+        "completionFallback": "fallenIdleRight"
+      }
+    },
+    {
+      "actionId": "throw_after_drag.stumble.left",
+      "animationRef": "stumble_recover_left",
+      "aliases": [
+        "throw_after_drag.stumble"
+      ],
+      "category": "interactionResponse",
+      "playbackKind": "once",
+      "placement": "currentPosition",
+      "movement": "none",
+      "startPose": "dragRelease",
+      "endPose": "idleCompatible",
+      "idleCompatible": true,
+      "facing": "left",
+      "locomotionProfile": null,
+      "interruptPolicy": "finishStep",
+      "fallbackChain": [
+        "idle"
+      ],
+      "moodEnergyAffinity": {
+        "mood": [
+          "neutral",
+          "happy",
+          "sad"
+        ],
+        "energy": [
+          "low",
+          "medium",
+          "high"
+        ]
+      },
+      "aiVisibility": "hidden",
+      "presetVisibility": "enabled",
+      "requiredCapabilities": [],
+      "deterministicSortWeight": 210,
+      "runtimeProfile": {
+        "renderProfile": "stumbleRecover",
+        "localInteractionProfile": "finiteScriptedAction",
+        "completionFallback": "idle"
+      }
+    },
+    {
+      "actionId": "throw_after_drag.stumble.right",
+      "animationRef": "stumble_recover_right",
+      "aliases": [
+        "throw_after_drag.stumble"
+      ],
+      "category": "interactionResponse",
+      "playbackKind": "once",
+      "placement": "currentPosition",
+      "movement": "none",
+      "startPose": "dragRelease",
+      "endPose": "idleCompatible",
+      "idleCompatible": true,
+      "facing": "right",
+      "locomotionProfile": null,
+      "interruptPolicy": "finishStep",
+      "fallbackChain": [
+        "idle"
+      ],
+      "moodEnergyAffinity": {
+        "mood": [
+          "neutral",
+          "happy",
+          "sad"
+        ],
+        "energy": [
+          "low",
+          "medium",
+          "high"
+        ]
+      },
+      "aiVisibility": "hidden",
+      "presetVisibility": "enabled",
+      "requiredCapabilities": [],
+      "deterministicSortWeight": 211,
+      "runtimeProfile": {
+        "renderProfile": "stumbleRecover",
+        "localInteractionProfile": "finiteScriptedAction",
+        "completionFallback": "idle"
+      }
+    },
+    {
+      "actionId": "throw_after_drag.none",
+      "animationRef": "idle",
+      "aliases": [
+        "throw_after_drag.none"
+      ],
+      "category": "interactionResponse",
+      "playbackKind": "idleLoop",
+      "placement": "currentPosition",
+      "movement": "none",
+      "startPose": "idleCompatible",
+      "endPose": "idleCompatible",
+      "idleCompatible": true,
+      "facing": "front",
+      "locomotionProfile": null,
+      "interruptPolicy": "interruptible",
+      "fallbackChain": [
+        "idle"
+      ],
+      "moodEnergyAffinity": {
+        "mood": [
+          "neutral",
+          "happy",
+          "sad"
+        ],
+        "energy": [
+          "low",
+          "medium",
+          "high"
+        ]
+      },
+      "aiVisibility": "hidden",
+      "presetVisibility": "enabled",
+      "requiredCapabilities": [],
+      "deterministicSortWeight": 220,
+      "runtimeProfile": {
+        "renderProfile": "idle",
+        "localInteractionProfile": "none"
+      }
+    },
+    {
+      "actionId": "throw_after_drag.get_up.left",
+      "animationRef": "fallen_get_up_left",
+      "aliases": [
+        "throw_after_drag.get_up"
+      ],
+      "category": "recovery",
+      "playbackKind": "once",
+      "placement": "currentPosition",
+      "movement": "none",
+      "startPose": "fallenLeft",
+      "endPose": "idleCompatible",
+      "idleCompatible": true,
+      "facing": "left",
+      "locomotionProfile": null,
+      "interruptPolicy": "finishStep",
+      "fallbackChain": [
+        "idle"
+      ],
+      "moodEnergyAffinity": {
+        "mood": [
+          "neutral",
+          "happy",
+          "sad"
+        ],
+        "energy": [
+          "low",
+          "medium",
+          "high"
+        ]
+      },
+      "aiVisibility": "hidden",
+      "presetVisibility": "enabled",
+      "requiredCapabilities": [],
+      "deterministicSortWeight": 230,
+      "runtimeProfile": {
+        "renderProfile": "fallenGetUp",
+        "localInteractionProfile": "finiteScriptedAction",
+        "completionFallback": "idle"
+      }
+    },
+    {
+      "actionId": "throw_after_drag.get_up.right",
+      "animationRef": "fallen_get_up_right",
+      "aliases": [
+        "throw_after_drag.get_up"
+      ],
+      "category": "recovery",
+      "playbackKind": "once",
+      "placement": "currentPosition",
+      "movement": "none",
+      "startPose": "fallenRight",
+      "endPose": "idleCompatible",
+      "idleCompatible": true,
+      "facing": "right",
+      "locomotionProfile": null,
+      "interruptPolicy": "finishStep",
+      "fallbackChain": [
+        "idle"
+      ],
+      "moodEnergyAffinity": {
+        "mood": [
+          "neutral",
+          "happy",
+          "sad"
+        ],
+        "energy": [
+          "low",
+          "medium",
+          "high"
+        ]
+      },
+      "aiVisibility": "hidden",
+      "presetVisibility": "enabled",
+      "requiredCapabilities": [],
+      "deterministicSortWeight": 231,
+      "runtimeProfile": {
+        "renderProfile": "fallenGetUp",
+        "localInteractionProfile": "finiteScriptedAction",
+        "completionFallback": "idle"
+      }
+    },
+    {
+      "actionId": "fallen_idle.left",
+      "animationRef": "fallen_idle_left",
+      "aliases": [
+        "fallen_idle"
+      ],
+      "category": "recoveryHold",
+      "playbackKind": "loopForDuration",
+      "placement": "currentPosition",
+      "movement": "none",
+      "startPose": "fallenLeft",
+      "endPose": "fallenLeft",
+      "idleCompatible": false,
+      "facing": "left",
+      "locomotionProfile": null,
+      "interruptPolicy": "finishStep",
+      "fallbackChain": [
+        "throw_after_drag.get_up.left",
+        "idle"
+      ],
+      "moodEnergyAffinity": {
+        "mood": [
+          "neutral",
+          "happy",
+          "sad"
+        ],
+        "energy": [
+          "low",
+          "medium",
+          "high"
+        ]
+      },
+      "aiVisibility": "hidden",
+      "presetVisibility": "enabled",
+      "requiredCapabilities": [],
+      "deterministicSortWeight": 232,
+      "runtimeProfile": {
+        "renderProfile": "fallen",
+        "localInteractionProfile": "fallenIdleLeft"
+      }
+    },
+    {
+      "actionId": "fallen_idle.right",
+      "animationRef": "fallen_idle_right",
+      "aliases": [
+        "fallen_idle"
+      ],
+      "category": "recoveryHold",
+      "playbackKind": "loopForDuration",
+      "placement": "currentPosition",
+      "movement": "none",
+      "startPose": "fallenRight",
+      "endPose": "fallenRight",
+      "idleCompatible": false,
+      "facing": "right",
+      "locomotionProfile": null,
+      "interruptPolicy": "finishStep",
+      "fallbackChain": [
+        "throw_after_drag.get_up.right",
+        "idle"
+      ],
+      "moodEnergyAffinity": {
+        "mood": [
+          "neutral",
+          "happy",
+          "sad"
+        ],
+        "energy": [
+          "low",
+          "medium",
+          "high"
+        ]
+      },
+      "aiVisibility": "hidden",
+      "presetVisibility": "enabled",
+      "requiredCapabilities": [],
+      "deterministicSortWeight": 233,
+      "runtimeProfile": {
+        "renderProfile": "fallen",
+        "localInteractionProfile": "fallenIdleRight"
+      }
+    }
+  ]
+}

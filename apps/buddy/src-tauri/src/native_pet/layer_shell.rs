@@ -151,6 +151,18 @@ impl LayerShellApi {
         }
     }
 
+    pub(super) fn set_layer(&self, window: &gtk::Window, layer: NativePetLayer) {
+        // SAFETY: window is borrowed from a live gtk::Window and layer maps to gtk-layer-shell
+        // constants through a validated function pointer.
+        unsafe {
+            let window = window.to_glib_none().0;
+            (self.set_layer)(window, layer.gtk_layer());
+            if let Some(try_force_commit) = self.try_force_commit {
+                try_force_commit(window);
+            }
+        }
+    }
+
     /// # Safety
     ///
     /// `window` must be a valid pointer borrowed from a live `gtk::Window`, and the loaded

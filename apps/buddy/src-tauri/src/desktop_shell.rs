@@ -1,8 +1,6 @@
 use std::{
     collections::HashMap,
-    fs,
-    process::Command,
-    sync::{Mutex, OnceLock},
+    sync::{Arc, Mutex, OnceLock},
     thread,
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
@@ -14,8 +12,14 @@ use tauri::{
 };
 
 use crate::{
+    choreography::preset_behavior::{
+        append_native_pet_preset_behavior_action_log, NativePetPresetBehaviorLogContext,
+    },
     error::{BuddyError, BuddyResult},
+    kwin_scripting::run_temporary_kwin_script,
+    local_log::LocalLogTimestamp,
     native_pet::{self, NativePetSidecarEvent},
+    state::BuddyAppState,
 };
 
 pub const BUDDY_PANEL_WINDOW_LABEL: &str = "panel";
@@ -25,25 +29,52 @@ const TRAY_OPEN_PANEL_ID: &str = "buddy-open-panel";
 const TRAY_OPEN_CHAT_ID: &str = "buddy-open-chat";
 const TRAY_QUIT_ID: &str = "buddy-quit";
 const TEMPORARY_FRONT_RAISE_DURATION: Duration = Duration::from_millis(220);
-const KWIN_SCRIPTING_SERVICE: &str = "org.kde.KWin";
-const KWIN_SCRIPTING_PATH: &str = "/Scripting";
-const KWIN_SCRIPTING_LOAD_SCRIPT_METHOD: &str = "org.kde.kwin.Scripting.loadScript";
-const KWIN_SCRIPTING_START_METHOD: &str = "org.kde.kwin.Scripting.start";
-const KWIN_SCRIPTING_UNLOAD_SCRIPT_METHOD: &str = "org.kde.kwin.Scripting.unloadScript";
 
 static WINDOW_ALWAYS_ON_TOP_STATES: OnceLock<Mutex<HashMap<String, bool>>> = OnceLock::new();
 
 pub fn setup_desktop_shell<R: Runtime>(app: &App<R>) -> BuddyResult<()> {
     prepare_initial_windows(app.handle())?;
     let app_handle = app.handle().clone();
+    let state = app.state::<BuddyAppState>().inner().clone();
+    let storage = state.storage_handle();
     let pet_process = native_pet::spawn_native_pet_sidecar(move |event| match event {
+        NativePetSidecarEvent::Ready => {
+            let _ = handle_native_pet_sidecar_ready(&state);
+        }
+        NativePetSidecarEvent::Restarting => {
+            let _ = handle_native_pet_sidecar_restarting(&state);
+        }
         NativePetSidecarEvent::OpenChat => {
             let _ = show_chat(&app_handle);
         }
+        NativePetSidecarEvent::PresetBehavior(event) => {
+            let _ = append_native_pet_preset_behavior_action_log(
+                &storage,
+                &event,
+                NativePetPresetBehaviorLogContext::new(),
+            );
+        }
+        NativePetSidecarEvent::StepResponse(_) => {}
+        NativePetSidecarEvent::StateSnapshot(_) => {}
     })?;
-    app.manage(pet_process);
+    app.manage(Arc::new(pet_process));
     create_tray(app)?;
     Ok(())
+}
+
+fn handle_native_pet_sidecar_ready(state: &BuddyAppState) -> BuddyResult<()> {
+    state
+        .mark_choreography_runtime_ready(LocalLogTimestamp::now_utc().to_rfc3339_millis())
+        .map(|_| ())
+}
+
+fn handle_native_pet_sidecar_restarting(state: &BuddyAppState) -> BuddyResult<()> {
+    state
+        .mark_choreography_runtime_degraded(
+            "runtime.nativePetSidecarRestarting",
+            LocalLogTimestamp::now_utc().to_rfc3339_millis(),
+        )
+        .map(|_| ())
 }
 
 pub fn handle_window_event<R: Runtime>(window: &Window<R>, event: &WindowEvent) {
@@ -279,16 +310,12 @@ fn set_kwin_window_keep_above(pid: u32, title: &str, keep_above: bool) -> BuddyR
         .map(|duration| duration.as_nanos())
         .unwrap_or_default();
     let plugin_name = format!("lexora-buddy-keep-above-{pid}-{nonce}");
-    let script_path = std::env::temp_dir().join(format!("{plugin_name}.js"));
-    fs::write(
-        &script_path,
-        create_kwin_keep_above_script(pid, title, keep_above)?,
+    let script = create_kwin_keep_above_script(pid, title, keep_above)?;
+    run_temporary_kwin_script(
+        &plugin_name,
+        &script,
+        "qdbus6 failed to apply KWin window state",
     )
-    .map_err(|error| BuddyError::Runtime(error.to_string()))?;
-
-    let result = run_kwin_script(&script_path, &plugin_name);
-    let _ = fs::remove_file(&script_path);
-    result
 }
 
 fn create_kwin_keep_above_script(pid: u32, title: &str, keep_above: bool) -> BuddyResult<String> {
@@ -338,82 +365,6 @@ if (target) {{
     ))
 }
 
-fn run_kwin_script(script_path: &std::path::Path, plugin_name: &str) -> BuddyResult<()> {
-    let script_path = script_path
-        .to_str()
-        .ok_or_else(|| BuddyError::Runtime("KWin script path is not valid UTF-8".to_owned()))?;
-    let _ = run_qdbus6([
-        KWIN_SCRIPTING_SERVICE,
-        KWIN_SCRIPTING_PATH,
-        KWIN_SCRIPTING_UNLOAD_SCRIPT_METHOD,
-        plugin_name,
-    ]);
-    run_qdbus6([
-        KWIN_SCRIPTING_SERVICE,
-        KWIN_SCRIPTING_PATH,
-        KWIN_SCRIPTING_LOAD_SCRIPT_METHOD,
-        script_path,
-        plugin_name,
-    ])?;
-    run_qdbus6([
-        KWIN_SCRIPTING_SERVICE,
-        KWIN_SCRIPTING_PATH,
-        KWIN_SCRIPTING_START_METHOD,
-    ])?;
-    let _ = run_qdbus6([
-        KWIN_SCRIPTING_SERVICE,
-        KWIN_SCRIPTING_PATH,
-        KWIN_SCRIPTING_UNLOAD_SCRIPT_METHOD,
-        plugin_name,
-    ]);
-
-    Ok(())
-}
-
-fn run_qdbus6<const N: usize>(args: [&str; N]) -> BuddyResult<String> {
-    let mut command = Command::new(qdbus6_binary());
-    if let Some(session_bus_address) = session_bus_address() {
-        command.env("DBUS_SESSION_BUS_ADDRESS", session_bus_address);
-    }
-
-    let output = command
-        .args(args)
-        .output()
-        .map_err(|error| BuddyError::Runtime(error.to_string()))?;
-
-    if output.status.success() {
-        return String::from_utf8(output.stdout)
-            .map_err(|error| BuddyError::Runtime(error.to_string()));
-    }
-
-    let stderr = String::from_utf8_lossy(&output.stderr).trim().to_owned();
-    Err(BuddyError::Runtime(if stderr.is_empty() {
-        "qdbus6 failed to apply KWin window state".to_owned()
-    } else {
-        stderr
-    }))
-}
-
-fn qdbus6_binary() -> &'static str {
-    if std::path::Path::new("/usr/bin/qdbus6").exists() {
-        "/usr/bin/qdbus6"
-    } else {
-        "qdbus6"
-    }
-}
-
-fn session_bus_address() -> Option<String> {
-    std::env::var("DBUS_SESSION_BUS_ADDRESS")
-        .ok()
-        .filter(|address| !address.is_empty())
-        .or_else(|| {
-            std::env::var("XDG_RUNTIME_DIR")
-                .ok()
-                .filter(|runtime_dir| !runtime_dir.is_empty())
-                .map(|runtime_dir| format!("unix:path={runtime_dir}/bus"))
-        })
-}
-
 fn should_require_kwin_window_layer_sync() -> bool {
     [
         std::env::var("XDG_CURRENT_DESKTOP").unwrap_or_default(),
@@ -430,9 +381,11 @@ fn should_require_kwin_window_layer_sync() -> bool {
 #[cfg(test)]
 mod tests {
     use super::{
-        create_kwin_keep_above_script, is_resident_window_label, BUDDY_CHAT_WINDOW_LABEL,
+        create_kwin_keep_above_script, handle_native_pet_sidecar_ready,
+        handle_native_pet_sidecar_restarting, is_resident_window_label, BUDDY_CHAT_WINDOW_LABEL,
         BUDDY_PANEL_WINDOW_LABEL,
     };
+    use crate::{app_paths::BuddyAppPaths, state::BuddyAppState};
 
     #[test]
     fn treats_panel_and_chat_as_resident_webview_windows() {
@@ -473,6 +426,59 @@ mod tests {
                 .iter()
                 .any(|candidate| candidate.as_str() == Some(permission)));
         }
+    }
+
+    #[test]
+    fn sidecar_ready_event_restores_choreography_runtime_readiness() {
+        let data_dir = std::env::temp_dir().join(format!(
+            "lexora-buddy-desktop-shell-sidecar-ready-{}",
+            uuid::Uuid::new_v4()
+        ));
+        let state =
+            BuddyAppState::initialize_with_paths(BuddyAppPaths::from_data_dir(data_dir.clone()))
+                .expect("initialize state");
+        state
+            .mark_choreography_runtime_degraded(
+                "runtime.systemRecoveryFailed",
+                "2026-07-09T10:00:00.000Z",
+            )
+            .expect("mark runtime degraded");
+
+        handle_native_pet_sidecar_ready(&state).expect("handle sidecar ready event");
+        let readiness = state
+            .choreography_runtime_readiness_snapshot()
+            .expect("read readiness");
+
+        assert_eq!(readiness.status.as_str(), "ready");
+        assert!(readiness.accepting_choreography);
+        assert_eq!(readiness.reason_code, None);
+
+        let _ = std::fs::remove_dir_all(data_dir);
+    }
+
+    #[test]
+    fn sidecar_restarting_event_stops_new_choreography_admission() {
+        let data_dir = std::env::temp_dir().join(format!(
+            "lexora-buddy-desktop-shell-sidecar-restarting-{}",
+            uuid::Uuid::new_v4()
+        ));
+        let state =
+            BuddyAppState::initialize_with_paths(BuddyAppPaths::from_data_dir(data_dir.clone()))
+                .expect("initialize state");
+
+        handle_native_pet_sidecar_restarting(&state).expect("handle sidecar restarting event");
+        let readiness = state
+            .choreography_runtime_readiness_snapshot()
+            .expect("read readiness");
+
+        assert_eq!(readiness.status.as_str(), "degraded");
+        assert!(!readiness.accepting_choreography);
+        assert_eq!(
+            readiness.reason_code.as_deref(),
+            Some("runtime.nativePetSidecarRestarting")
+        );
+
+        let _ = std::fs::remove_dir_all(data_dir);
     }
 
     #[test]

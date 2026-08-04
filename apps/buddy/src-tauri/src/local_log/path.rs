@@ -123,13 +123,63 @@ pub fn run_log_path(buddy_home: &Path, timestamp: LocalLogTimestamp, run_id: &st
         ))
 }
 
+pub fn parse_rfc3339_utc_seconds(timestamp: &str) -> Option<u64> {
+    let year = parse_u32(timestamp.get(0..4)?)? as i32;
+    let month = parse_u32(timestamp.get(5..7)?)?;
+    let day = parse_u32(timestamp.get(8..10)?)?;
+    let hour = parse_u32(timestamp.get(11..13)?)?;
+    let minute = parse_u32(timestamp.get(14..16)?)?;
+    let second = parse_u32(timestamp.get(17..19)?)?;
+
+    if timestamp.get(4..5) != Some("-")
+        || timestamp.get(7..8) != Some("-")
+        || timestamp.get(10..11) != Some("T")
+        || timestamp.get(13..14) != Some(":")
+        || timestamp.get(16..17) != Some(":")
+        || !timestamp.ends_with('Z')
+        || month == 0
+        || month > 12
+        || day == 0
+        || day > 31
+        || hour > 23
+        || minute > 59
+        || second > 60
+    {
+        return None;
+    }
+
+    let days = days_from_civil(year, month, day)?;
+    u64::try_from(days)
+        .ok()?
+        .checked_mul(24 * 60 * 60)?
+        .checked_add(u64::from(hour) * 60 * 60)?
+        .checked_add(u64::from(minute) * 60)?
+        .checked_add(u64::from(second))
+}
+
+fn parse_u32(value: &str) -> Option<u32> {
+    value.parse::<u32>().ok()
+}
+
+fn days_from_civil(year: i32, month: u32, day: u32) -> Option<i64> {
+    let year = year - i32::from(month <= 2);
+    let era = if year >= 0 { year } else { year - 399 } / 400;
+    let year_of_era = year - era * 400;
+    let month = i32::try_from(month).ok()?;
+    let day = i32::try_from(day).ok()?;
+    let day_of_year = (153 * (month + if month > 2 { -3 } else { 9 }) + 2) / 5 + day - 1;
+    let day_of_era = year_of_era * 365 + year_of_era / 4 - year_of_era / 100 + day_of_year;
+
+    Some(i64::from(era) * 146_097 + i64::from(day_of_era) - 719_468)
+}
+
 #[cfg(test)]
 mod tests {
     use std::path::PathBuf;
 
     use super::{
-        conversation_index_path, conversation_log_path, run_index_path, run_log_path,
-        LocalLogTimestamp,
+        conversation_index_path, conversation_log_path, parse_rfc3339_utc_seconds, run_index_path,
+        run_log_path, LocalLogTimestamp,
     };
 
     #[test]
@@ -183,5 +233,15 @@ mod tests {
         assert_eq!(timestamp.to_rfc3339_millis(), "2026-07-06T09:08:07.000Z");
         assert_eq!(timestamp.date_bucket(), "2026/07/06");
         assert_eq!(timestamp.file_timestamp(), "2026-07-06T09-08-07");
+    }
+
+    #[test]
+    fn parses_rfc3339_utc_seconds_with_optional_millis() {
+        assert_eq!(parse_rfc3339_utc_seconds("1970-01-01T00:00:01Z"), Some(1));
+        assert_eq!(
+            parse_rfc3339_utc_seconds("1970-01-02T00:00:00.000Z"),
+            Some(86_400)
+        );
+        assert_eq!(parse_rfc3339_utc_seconds("1970-01-01 00:00:01Z"), None);
     }
 }

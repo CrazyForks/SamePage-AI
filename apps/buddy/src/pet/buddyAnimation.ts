@@ -61,6 +61,7 @@ export interface BuddyAiAnimationIntent {
 
 export interface BuddyTaskAnimationSignal {
   isSending: boolean
+  latestRunCompletedAt?: string | null
   latestRunStatus: BuddyTaskRunStatus | null
   pendingApprovalCount: number
 }
@@ -107,6 +108,7 @@ const AI_INTENT_PRIORITIES = new Set<BuddyAnimationPriority>([
   'normal',
   'urgent',
 ])
+const TASK_TERMINAL_REACTION_WINDOW_MS = 5000
 
 export function resolveBuddyAiAnimationIntentFromRunEvents(
   events: ReadonlyArray<{
@@ -168,7 +170,7 @@ export function resolveBuddyAnimationState(input: BuddyAnimationResolveInput): B
   if (aiState && AI_HIGH_PRIORITY.has(aiState.priority))
     return aiState
 
-  const taskState = resolveTaskAnimation(input.task)
+  const taskState = resolveTaskAnimation(input.task, input.nowUnixMs)
   if (taskState)
     return taskState
 
@@ -380,7 +382,10 @@ function isLoopingAiIntent(intent: BuddyAiAnimationIntentName): boolean {
   return intent === 'focus' || intent === 'sleep'
 }
 
-function resolveTaskAnimation(task: BuddyTaskAnimationSignal): BuddyAnimationState | null {
+function resolveTaskAnimation(
+  task: BuddyTaskAnimationSignal,
+  nowUnixMs = Date.now(),
+): BuddyAnimationState | null {
   if (task.isSending) {
     return {
       durationMs: null,
@@ -404,6 +409,9 @@ function resolveTaskAnimation(task: BuddyTaskAnimationSignal): BuddyAnimationSta
         reason: `run_${task.latestRunStatus}`,
       }
     case 'completed':
+      if (!isFreshTerminalRun(task.latestRunCompletedAt ?? null, nowUnixMs))
+        return null
+
       return {
         durationMs: 1800,
         layer: 'task',
@@ -422,6 +430,9 @@ function resolveTaskAnimation(task: BuddyTaskAnimationSignal): BuddyAnimationSta
         reason: 'run_failed',
       }
     case 'cancelled':
+      if (!isFreshTerminalRun(task.latestRunCompletedAt ?? null, nowUnixMs))
+        return null
+
       return {
         durationMs: 1400,
         layer: 'task',
@@ -433,6 +444,18 @@ function resolveTaskAnimation(task: BuddyTaskAnimationSignal): BuddyAnimationSta
     case null:
       return null
   }
+}
+
+function isFreshTerminalRun(completedAt: string | null, nowUnixMs: number): boolean {
+  if (!completedAt)
+    return false
+
+  const completedAtUnixMs = Date.parse(completedAt)
+  if (!Number.isFinite(completedAtUnixMs))
+    return false
+
+  const elapsedMs = nowUnixMs - completedAtUnixMs
+  return elapsedMs >= 0 && elapsedMs <= TASK_TERMINAL_REACTION_WINDOW_MS
 }
 
 function resolveLifecycleAnimation(lifecycle: BuddyLifecycleSignal): BuddyAnimationState {

@@ -159,10 +159,14 @@
       "loop": false
     },
     {
-      "name": "sleep",
-      "description": "Low-energy resting loop for long idle periods.",
+      "name": "sleep_enter",
+      "description": "One-shot transition from idle standing into the settled sleeping pose.",
       "row": 5,
       "frames": [
+        {
+          "index": 40,
+          "durationMs": 160
+        },
         {
           "index": 41,
           "durationMs": 180
@@ -173,10 +177,18 @@
         },
         {
           "index": 43,
-          "durationMs": 260
-        },
+          "durationMs": 320
+        }
+      ],
+      "loop": false
+    },
+    {
+      "name": "sleep",
+      "description": "Static settled sleeping hold for long idle periods.",
+      "row": 5,
+      "frames": [
         {
-          "index": 44,
+          "index": 43,
           "durationMs": 1200
         }
       ],
@@ -369,6 +381,46 @@
         }
       ],
       "loop": true
+    },
+    {
+      "name": "cast",
+      "description": "One-shot spell-casting gesture shared from the working and explain source strip.",
+      "row": 8,
+      "frames": [
+        {
+          "index": 64,
+          "durationMs": 120
+        },
+        {
+          "index": 65,
+          "durationMs": 140
+        },
+        {
+          "index": 66,
+          "durationMs": 160
+        },
+        {
+          "index": 67,
+          "durationMs": 220
+        },
+        {
+          "index": 68,
+          "durationMs": 340
+        },
+        {
+          "index": 69,
+          "durationMs": 260
+        },
+        {
+          "index": 70,
+          "durationMs": 180
+        },
+        {
+          "index": 71,
+          "durationMs": 420
+        }
+      ],
+      "loop": false
     },
     {
       "name": "explain",
@@ -778,11 +830,5 @@
       ],
       "loop": false
     }
-  ],
-  "moodAnimations": {
-    "idle": "idle",
-    "thinking": "thinking",
-    "done": "celebrate",
-    "error": "sad"
-  }
+  ]
 }

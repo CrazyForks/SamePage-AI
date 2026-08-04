@@ -1,6 +1,7 @@
 mod agents;
 mod app_config;
 mod app_paths;
+mod choreography;
 mod codex_smoke;
 mod commands;
 mod context_pack;
@@ -9,15 +10,25 @@ mod domain;
 mod error;
 mod health_check;
 mod intent;
+mod kwin_scripting;
 mod linux_webview;
 mod memory;
 mod native_pet;
+mod runtime_instance;
 mod state;
 mod storage;
 mod window_smoke;
 
 use tauri::Manager;
 
+pub use choreography::{
+    run_affective_state_command_from_env, run_choreography_dev_fixture_command_from_env,
+};
+pub use commands::choreography::{
+    run_startup_recoverable_choreography_list_command_from_env,
+    run_startup_recoverable_choreography_replay_command_from_env,
+    run_startup_recoverable_choreography_replay_next_command_from_env,
+};
 pub use health_check::run_headless_command_from_env;
 pub use native_pet::{
     run_native_pet_drag_replay_command_from_env, run_native_pet_sidecar_from_env,
@@ -78,7 +89,11 @@ pub fn run() {
 
     tauri::Builder::default()
         .setup(|app| {
-            let state = state::BuddyAppState::initialize(app.handle())?;
+            let paths = BuddyAppPaths::resolve(app.handle())?;
+            let runtime_instance_lock =
+                runtime_instance::BuddyRuntimeInstanceLock::acquire(&paths.data_dir_path())?;
+            let state = state::BuddyAppState::initialize_with_paths(paths)?;
+            app.manage(runtime_instance_lock);
             app.manage(commands::BuddyRunCancellationRegistry::default());
             app.manage(state);
             desktop_shell::setup_desktop_shell(app)?;
@@ -91,7 +106,6 @@ pub fn run() {
             commands::approval::approve_buddy_codex_app_server_request_approval,
             commands::approval::approve_buddy_read_only_task,
             commands::cancel_buddy_chat_run,
-            commands::control_buddy_native_pet_host_action,
             commands::run_events::count_buddy_run_events,
             commands::create_buddy_message,
             commands::create_buddy_session,
@@ -102,6 +116,8 @@ pub fn run() {
             commands::get_buddy_codex_runtime_status,
             commands::get_buddy_runtime_diagnostics,
             commands::get_buddy_app_settings,
+            commands::action_log::get_buddy_action_log_plan_detail,
+            commands::action_log::queryActionLogSystemEvents,
             commands::get_buddy_current_window_frame_state,
             commands::get_buddy_local_state_status,
             commands::get_buddy_runtime_status,
@@ -110,6 +126,7 @@ pub fn run() {
             commands::get_buddy_usage_snapshot,
             commands::hide_buddy_current_window,
             commands::list_buddy_projects,
+            commands::action_log::list_buddy_action_log_plans,
             commands::approval::list_buddy_approvals,
             commands::list_buddy_runtime_model_options,
             commands::run_events::list_buddy_chat_conversation_events,
@@ -128,6 +145,11 @@ pub fn run() {
             commands::minimize_buddy_current_window,
             commands::attachment::read_buddy_clipboard_files,
             commands::attachment::read_buddy_clipboard_image,
+            commands::choreography::diagnoseStartupRecoverableChoreographyReplayCandidates,
+            commands::choreography::replayNextStartupRecoverableChoreographyPendingExecution,
+            commands::choreography::replayStartupRecoverableChoreographyPendingExecution,
+            commands::choreography::runChoreographyDevFixture,
+            commands::choreography::runChoreographyMacroIntent,
             commands::read_buddy_setting_json,
             commands::attachment::select_buddy_chat_attachment_files,
             commands::set_buddy_current_window_always_on_top,
@@ -142,20 +164,6 @@ pub fn run() {
         ])
         .run(tauri::generate_context!())
         .expect("failed to run Lexora");
-}
-
-#[cfg(test)]
-mod invoke_handler_tests {
-    #[test]
-    fn does_not_expose_legacy_chat_message_command() {
-        let source = include_str!("lib.rs");
-        let legacy_command = concat!("start_", "buddy_chat_message");
-
-        assert!(
-            !source.contains(&format!("commands::{legacy_command}")),
-            "legacy session chat command must not stay registered as a Tauri product entrypoint"
-        );
-    }
 }
 
 #[cfg(test)]

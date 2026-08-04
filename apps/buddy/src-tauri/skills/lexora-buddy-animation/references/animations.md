@@ -2,8 +2,8 @@
 
 ## Semantic Mapping
 
-- 跳舞 / 开心 / 庆祝：`celebrate`
-- 施法 / 蓄力 / 酷炫动作：当前使用 `celebrate`
+- 开心 / 庆祝：`celebrate`
+- 施法 / 蓄力 / 酷炫动作：`cast`
 - 睡觉：`sleep`
 - 醒来：`wake`
 - 思考：`thinking`
@@ -15,14 +15,12 @@
 - 同意 / 认可：`approval`
 - 跑动：runtime 自动使用 `run_left` / `run_right`
 
-## Available Runtime Names
+## Runtime Inventory
 
-`idle`, `run_left`, `run_right`, `sleep`, `wake`, `hover`, `tap`, `approval`, `thinking`, `working`, `celebrate`, `sad`, `reassure`, `explain`, `curious`, `trip_fall_left`, `fallen_idle_left`, `fallen_get_up_left`, `trip_fall_right`, `fallen_idle_right`, `fallen_get_up_right`, `stumble_recover_left`, `stumble_recover_right`。
-
-调用前可用：
+不要在 skill 中维护完整 runtime animation name 清单。安装版本、manifest 和动作资产会持续演进，调用前通过 runtime 查询当前能力：
 
 ```bash
 node <skill_dir>/scripts/lexora-buddy-pet.mjs capabilities
 ```
 
-如果用户要求的动作没有映射，不要发明动画名；选择最接近的已有语义，或说明当前 runtime 没有该动作。
+如果用户要求的动作没有稳定映射，不要发明动画名。只有语义确实等价时才选择已有动作；否则说明当前 runtime 没有该动作。尤其不要在正式 dance 动作缺失时把 `celebrate` 声称为跳舞。

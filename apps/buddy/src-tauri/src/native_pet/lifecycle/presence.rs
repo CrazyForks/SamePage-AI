@@ -1,6 +1,12 @@
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use super::super::animation::NativePetAnimationName;
+use super::super::animation::{
+    NativePetAnimationLocalInteractionProfile, NativePetAnimationPlayback,
+    NativePetAnimationRenderProfile, NativePetAnimationSet, NativePetAnimationTarget,
+    NativePetLifecycleAnimationDecision, NativePetRequestedAnimationState,
+};
+use super::current::NativePetCurrentAnimationState;
+use super::targets::NativePetLifecycleActionTargets;
 
 const NATIVE_PET_IDLE_PRESENCE_AFTER_IDLE_MS: [u64; 2] = [18_000, 31_000];
 const NATIVE_PET_IDLE_PRESENCE_DRIFT_MS: [i64; 5] = [0, 1_000, -1_000, 500, -500];
@@ -10,19 +16,80 @@ const NATIVE_PET_TASK_PRESENCE_FIRST_AFTER_MS: u64 = 22_000;
 const NATIVE_PET_TASK_PRESENCE_INTERVAL_MS: u64 = 24_000;
 const NATIVE_PET_TASK_PRESENCE_TRIGGER_WINDOW_MS: u64 = 64 * 2;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum NativePetTaskPresenceState {
+    Approval,
+    Thinking,
+    Working,
+}
+
+impl NativePetTaskPresenceState {
+    fn from_render_profile(profile: NativePetAnimationRenderProfile) -> Option<Self> {
+        match profile {
+            NativePetAnimationRenderProfile::Approval => Some(Self::Approval),
+            NativePetAnimationRenderProfile::Thinking => Some(Self::Thinking),
+            NativePetAnimationRenderProfile::Working => Some(Self::Working),
+            _ => None,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(in crate::native_pet) struct NativePetLifecycleAnimationInput {
+    pub(in crate::native_pet) pointer_hovered: bool,
+    pub(in crate::native_pet) is_dragging: bool,
+    pub(in crate::native_pet) is_inertia_active: bool,
+    pub(in crate::native_pet) requested: NativePetRequestedAnimationState,
+    pub(in crate::native_pet) current: NativePetCurrentAnimationState,
+    pub(in crate::native_pet) idle_elapsed_ms: u64,
+    pub(in crate::native_pet) idle_presence_schedule_seed: u64,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(in crate::native_pet) struct NativePetTaskPresenceAnimationInput {
+    pub(in crate::native_pet) pointer_hovered: bool,
+    pub(in crate::native_pet) is_dragging: bool,
+    pub(in crate::native_pet) is_inertia_active: bool,
+    pub(in crate::native_pet) requested: NativePetRequestedAnimationState,
+    pub(in crate::native_pet) current: NativePetCurrentAnimationState,
+    pub(in crate::native_pet) task_presence_elapsed_ms: u64,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(in crate::native_pet) struct NativePetIdleLifecycleElapsedInput {
+    pub(in crate::native_pet) current_elapsed_ms: u64,
+    pub(in crate::native_pet) elapsed_ms: u64,
+    pub(in crate::native_pet) pointer_hovered: bool,
+    pub(in crate::native_pet) is_dragging: bool,
+    pub(in crate::native_pet) is_inertia_active: bool,
+    pub(in crate::native_pet) requested: NativePetRequestedAnimationState,
+    pub(in crate::native_pet) current: NativePetCurrentAnimationState,
+    pub(in crate::native_pet) idle_target: NativePetAnimationTarget,
+}
+
 pub(in crate::native_pet) fn native_pet_idle_lifecycle_elapsed_ms(
-    current_elapsed_ms: u64,
-    elapsed_ms: u64,
-    pointer_hovered: bool,
-    is_dragging: bool,
-    is_inertia_active: bool,
-    requested: NativePetAnimationName,
+    input: NativePetIdleLifecycleElapsedInput,
 ) -> u64 {
-    if matches!(requested, NativePetAnimationName::Idle)
-        && !pointer_hovered
-        && !is_dragging
-        && !is_inertia_active
+    let NativePetIdleLifecycleElapsedInput {
+        current_elapsed_ms,
+        elapsed_ms,
+        pointer_hovered,
+        is_dragging,
+        is_inertia_active,
+        requested,
+        current,
+        idle_target,
+    } = input;
+    if current.is_sleep()
+        || matches!(
+            current.local_interaction_profile(),
+            NativePetAnimationLocalInteractionProfile::FiniteScriptedAction
+        )
     {
+        return 0;
+    }
+
+    if requested.is_idle(idle_target) && !pointer_hovered && !is_dragging && !is_inertia_active {
         return current_elapsed_ms.saturating_add(elapsed_ms);
     }
 
@@ -30,65 +97,70 @@ pub(in crate::native_pet) fn native_pet_idle_lifecycle_elapsed_ms(
 }
 
 pub(in crate::native_pet) fn native_pet_task_presence_elapsed_ms(
+    animations: &NativePetAnimationSet,
     current_elapsed_ms: u64,
     elapsed_ms: u64,
     pointer_hovered: bool,
     is_dragging: bool,
     is_inertia_active: bool,
-    requested: NativePetAnimationName,
+    requested: NativePetRequestedAnimationState,
 ) -> u64 {
-    if native_pet_is_task_presence_state(requested)
-        && !pointer_hovered
-        && !is_dragging
-        && !is_inertia_active
+    if NativePetTaskPresenceState::from_render_profile(
+        animations.render_profile_for_target(requested.animation_target()),
+    )
+    .is_none()
     {
-        return current_elapsed_ms.saturating_add(elapsed_ms);
+        return 0;
+    }
+    if pointer_hovered || is_dragging || is_inertia_active {
+        return 0;
     }
 
-    0
+    current_elapsed_ms.saturating_add(elapsed_ms)
 }
 
 pub(in crate::native_pet) fn native_pet_task_presence_animation(
-    pointer_hovered: bool,
-    is_dragging: bool,
-    is_inertia_active: bool,
-    requested: NativePetAnimationName,
-    current: NativePetAnimationName,
-    task_presence_elapsed_ms: u64,
-) -> Option<NativePetAnimationName> {
-    if pointer_hovered || is_dragging || is_inertia_active || current != requested {
-        return None;
-    }
-
-    if !native_pet_is_task_presence_state(requested) {
+    targets: &NativePetLifecycleActionTargets,
+    animations: &NativePetAnimationSet,
+    input: NativePetTaskPresenceAnimationInput,
+) -> Option<NativePetLifecycleAnimationDecision> {
+    let NativePetTaskPresenceAnimationInput {
+        pointer_hovered,
+        is_dragging,
+        is_inertia_active,
+        requested,
+        current,
+        task_presence_elapsed_ms,
+    } = input;
+    let requested_presence_state = NativePetTaskPresenceState::from_render_profile(
+        animations.render_profile_for_target(requested.animation_target()),
+    )?;
+    if pointer_hovered
+        || is_dragging
+        || is_inertia_active
+        || current.animation_target() != requested.animation_target()
+    {
         return None;
     }
 
     if native_pet_should_play_task_presence_reaction(task_presence_elapsed_ms) {
-        return Some(native_pet_task_presence_reaction_animation(requested));
+        return Some(
+            native_pet_task_presence_reaction_animation(targets, requested_presence_state).into(),
+        );
     }
 
     None
 }
 
 fn native_pet_task_presence_reaction_animation(
-    requested: NativePetAnimationName,
-) -> NativePetAnimationName {
+    targets: &NativePetLifecycleActionTargets,
+    requested: NativePetTaskPresenceState,
+) -> NativePetAnimationTarget {
     match requested {
-        NativePetAnimationName::Thinking => NativePetAnimationName::Explain,
-        NativePetAnimationName::Approval => NativePetAnimationName::Hover,
-        NativePetAnimationName::Working => NativePetAnimationName::Curious,
-        _ => NativePetAnimationName::Curious,
+        NativePetTaskPresenceState::Thinking => targets.explain(),
+        NativePetTaskPresenceState::Approval => targets.hover(),
+        NativePetTaskPresenceState::Working => targets.curious(),
     }
-}
-
-fn native_pet_is_task_presence_state(requested: NativePetAnimationName) -> bool {
-    matches!(
-        requested,
-        NativePetAnimationName::Thinking
-            | NativePetAnimationName::Working
-            | NativePetAnimationName::Approval
-    )
 }
 
 fn native_pet_should_play_task_presence_reaction(task_presence_elapsed_ms: u64) -> bool {
@@ -102,63 +174,75 @@ fn native_pet_should_play_task_presence_reaction(task_presence_elapsed_ms: u64) 
 }
 
 pub(in crate::native_pet) fn native_pet_animation_for_lifecycle(
-    pointer_hovered: bool,
-    is_dragging: bool,
-    is_inertia_active: bool,
-    requested: NativePetAnimationName,
-    current: NativePetAnimationName,
-    idle_elapsed_ms: u64,
-    idle_presence_schedule_seed: u64,
-) -> NativePetAnimationName {
+    targets: &NativePetLifecycleActionTargets,
+    input: NativePetLifecycleAnimationInput,
+) -> NativePetLifecycleAnimationDecision {
+    let NativePetLifecycleAnimationInput {
+        pointer_hovered,
+        is_dragging,
+        is_inertia_active,
+        requested,
+        current,
+        idle_elapsed_ms,
+        idle_presence_schedule_seed,
+    } = input;
+
     if is_dragging || is_inertia_active {
-        return requested;
+        return requested.animation_target().into();
     }
 
-    if matches!(requested, NativePetAnimationName::Idle)
-        && matches!(current, NativePetAnimationName::Sad)
-    {
-        return NativePetAnimationName::Reassure;
+    if requested.is_idle(targets.idle()) && current.is_sad() {
+        return targets.reassure().into();
     }
 
-    if matches!(requested, NativePetAnimationName::Idle)
-        && matches!(current, NativePetAnimationName::Working)
-    {
-        return NativePetAnimationName::Celebrate;
+    if requested.is_idle(targets.idle()) && current.is_working() {
+        return targets.celebrate().into();
     }
 
-    if !matches!(requested, NativePetAnimationName::Idle) {
-        if matches!(current, NativePetAnimationName::Sleep) {
-            return NativePetAnimationName::Wake;
+    if requested.animation_target() == targets.sleep() {
+        return targets.sleep().into();
+    }
+
+    if !requested.is_idle(targets.idle()) {
+        if current.is_sleep() {
+            return targets.wake().into();
         }
 
-        return requested;
+        return requested.animation_target().into();
+    }
+
+    if current.is_sleep() {
+        if pointer_hovered {
+            return targets.wake().into();
+        }
+
+        return targets.sleep().into();
     }
 
     if pointer_hovered {
-        if matches!(current, NativePetAnimationName::Sleep) {
-            return NativePetAnimationName::Wake;
-        }
-
-        return NativePetAnimationName::Hover;
+        return targets.hover().into();
     }
 
     if idle_elapsed_ms >= NATIVE_PET_SLEEP_AFTER_IDLE_MS {
-        return NativePetAnimationName::Sleep;
+        return targets.sleep_enter().into();
     }
 
-    if let Some(animation) =
-        native_pet_idle_presence_reaction_animation(idle_elapsed_ms, idle_presence_schedule_seed)
-    {
-        return animation;
+    if let Some(animation) = native_pet_idle_presence_reaction_animation(
+        targets,
+        idle_elapsed_ms,
+        idle_presence_schedule_seed,
+    ) {
+        return animation.into();
     }
 
-    NativePetAnimationName::Idle
+    targets.idle().into()
 }
 
 fn native_pet_idle_presence_reaction_animation(
+    targets: &NativePetLifecycleActionTargets,
     idle_elapsed_ms: u64,
     idle_presence_schedule_seed: u64,
-) -> Option<NativePetAnimationName> {
+) -> Option<NativePetAnimationTarget> {
     NATIVE_PET_IDLE_PRESENCE_AFTER_IDLE_MS
         .iter()
         .enumerate()
@@ -175,6 +259,7 @@ fn native_pet_idle_presence_reaction_animation(
             }
 
             Some(native_pet_idle_presence_reaction_for_seed(
+                targets,
                 idle_presence_schedule_seed,
                 index,
             ))
@@ -182,13 +267,14 @@ fn native_pet_idle_presence_reaction_animation(
 }
 
 fn native_pet_idle_presence_reaction_for_seed(
+    targets: &NativePetLifecycleActionTargets,
     idle_presence_schedule_seed: u64,
     threshold_index: usize,
-) -> NativePetAnimationName {
+) -> NativePetAnimationTarget {
     let branch = idle_presence_schedule_seed.wrapping_add(threshold_index as u64);
     match branch % 3 {
-        0 => NativePetAnimationName::Idle,
-        _ => NativePetAnimationName::Curious,
+        0 => targets.idle(),
+        _ => targets.curious(),
     }
 }
 
@@ -239,14 +325,15 @@ pub(in crate::native_pet) fn native_pet_should_rotate_idle_presence_schedule(
 }
 
 pub(in crate::native_pet) fn native_pet_should_apply_lifecycle_animation(
-    current: NativePetAnimationName,
-    target: NativePetAnimationName,
+    animations: &NativePetAnimationSet,
+    current: NativePetAnimationPlayback,
+    target: NativePetLifecycleAnimationDecision,
 ) -> bool {
-    current != target
-        && matches!(
-            current,
-            NativePetAnimationName::Idle
-                | NativePetAnimationName::Sleep
-                | NativePetAnimationName::Hover
+    let current = NativePetCurrentAnimationState::from_playback(animations, current);
+    current.animation_target() != target.animation_target()
+        && !matches!(
+            current.local_interaction_profile(),
+            NativePetAnimationLocalInteractionProfile::FiniteScriptedAction
         )
+        && current.can_be_replaced_by_lifecycle()
 }

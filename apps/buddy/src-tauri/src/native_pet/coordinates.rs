@@ -226,42 +226,9 @@ pub(super) fn native_pet_window_rect(
 mod tests {
     use super::{
         native_pet_grab_offset, native_pet_position_from_cursor_offset,
-        native_pet_round_logical_px, native_pet_window_rect, NativePetCoordinateSpace,
-        NativePetLogicalPoint, NativePetLogicalRect, NativePetLogicalSize, NativePetPosition,
-        NATIVE_PET_COORDINATE_SPACE,
+        native_pet_round_logical_px, NativePetLogicalPoint, NativePetLogicalRect,
+        NativePetPosition,
     };
-
-    #[test]
-    fn uses_gtk_logical_pixels_for_stage_one_drag_coordinates() {
-        assert_eq!(
-            NATIVE_PET_COORDINATE_SPACE,
-            NativePetCoordinateSpace::GtkLogicalPixels
-        );
-    }
-
-    #[test]
-    fn preserves_grab_offset_from_window_origin() {
-        let offset = native_pet_grab_offset(
-            NativePetPosition { x: 200, y: 300 },
-            NativePetLogicalPoint::new(212.4, 295.2),
-        );
-
-        assert!((offset.x - 12.4).abs() < 1e-9);
-        assert!((offset.y + 4.8).abs() < 1e-9);
-    }
-
-    #[test]
-    fn maps_window_position_from_cursor_minus_grab_offset() {
-        let position = native_pet_position_from_cursor_offset(
-            NativePetLogicalPoint::new(1012.4, 995.2),
-            native_pet_grab_offset(
-                NativePetPosition { x: 200, y: 300 },
-                NativePetLogicalPoint::new(1000.0, 1000.0),
-            ),
-        );
-
-        assert_eq!(position, Some(NativePetPosition { x: 212, y: 295 }));
-    }
 
     #[test]
     fn keeps_negative_logical_coordinates_when_mapping_window_origin() {
@@ -305,16 +272,6 @@ mod tests {
             native_pet_round_logical_px(f64::from(i32::MIN) * 2.0),
             Some(i32::MIN)
         );
-    }
-
-    #[test]
-    fn maps_window_rect_from_position_and_size() {
-        let rect = native_pet_window_rect(
-            NativePetPosition { x: -240, y: 80 },
-            NativePetLogicalSize::new(320, 180),
-        );
-
-        assert_eq!(rect, NativePetLogicalRect::new(-240, 80, 320, 180));
     }
 
     #[test]

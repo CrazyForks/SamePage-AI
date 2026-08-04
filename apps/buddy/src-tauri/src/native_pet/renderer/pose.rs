@@ -1,4 +1,6 @@
-use super::super::animation::{NativePetAnimationName, NativePetAnimationPlayback};
+use super::super::animation::{
+    NativePetAnimationPlayback, NativePetAnimationRenderProfile, NativePetAnimationSet,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub(super) struct NativePetRenderPose {
@@ -8,33 +10,134 @@ pub(super) struct NativePetRenderPose {
     pub(super) scale_y: f64,
 }
 
-pub(super) fn native_pet_render_pose(playback: NativePetAnimationPlayback) -> NativePetRenderPose {
-    match playback.name {
-        NativePetAnimationName::Idle => native_pet_idle_breathing_pose(playback.frame_phase),
-        NativePetAnimationName::GrabStart => native_pet_grab_start_pose(playback.frame_phase),
-        NativePetAnimationName::Drag => native_pet_drag_pose(playback.frame_phase),
-        NativePetAnimationName::RunLeft => native_pet_running_pose(playback.frame_phase, -1.0),
-        NativePetAnimationName::RunRight => native_pet_running_pose(playback.frame_phase, 1.0),
-        NativePetAnimationName::Hover => native_pet_hover_pose(playback.frame_phase),
-        NativePetAnimationName::Wake => native_pet_wake_pose(playback.frame_phase),
-        NativePetAnimationName::Sleep => native_pet_sleep_pose(playback.frame_phase),
-        NativePetAnimationName::Approval => native_pet_approval_pose(playback.frame_phase),
-        NativePetAnimationName::Thinking => native_pet_thinking_pose(playback.frame_phase),
-        NativePetAnimationName::Working => native_pet_working_pose(playback.frame_phase),
-        NativePetAnimationName::Celebrate => native_pet_celebrate_pose(playback.frame_phase),
-        NativePetAnimationName::Sad => native_pet_sad_pose(playback.frame_phase),
-        NativePetAnimationName::Reassure => native_pet_reassure_pose(playback.frame_phase),
-        NativePetAnimationName::Explain => native_pet_explain_pose(playback.frame_phase),
-        NativePetAnimationName::Curious => native_pet_curious_pose(playback.frame_phase),
-        NativePetAnimationName::Tap => native_pet_tap_pose(playback.frame_phase),
-        NativePetAnimationName::TripFallLeft
-        | NativePetAnimationName::FallenIdleLeft
-        | NativePetAnimationName::FallenGetUpLeft
-        | NativePetAnimationName::TripFallRight
-        | NativePetAnimationName::FallenIdleRight
-        | NativePetAnimationName::FallenGetUpRight
-        | NativePetAnimationName::StumbleRecoverLeft
-        | NativePetAnimationName::StumbleRecoverRight => NativePetRenderPose::default(),
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub(super) enum NativePetRenderProfileKind {
+    Idle,
+    GrabStart,
+    Drag,
+    RunLeft,
+    RunRight,
+    Hover,
+    Wake,
+    Sleep,
+    Approval,
+    Thinking,
+    Working,
+    Celebrate,
+    Dance,
+    Cast,
+    Sad,
+    Reassure,
+    Explain,
+    Curious,
+    Tap,
+    TripFall,
+    Fallen,
+    FallenGetUp,
+    StumbleRecover,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub(super) struct NativePetRenderProfile {
+    kind: NativePetRenderProfileKind,
+    frame_phase: usize,
+}
+
+impl NativePetRenderProfile {
+    pub(super) fn from_playback(
+        animations: &NativePetAnimationSet,
+        playback: NativePetAnimationPlayback,
+    ) -> Self {
+        Self::from_animation_profile(
+            animations.render_profile_for_playback(playback),
+            playback.frame_phase,
+        )
+    }
+
+    pub(super) fn kind(self) -> NativePetRenderProfileKind {
+        self.kind
+    }
+
+    pub(super) fn frame_phase(self) -> usize {
+        self.frame_phase
+    }
+
+    fn from_animation_profile(
+        profile: NativePetAnimationRenderProfile,
+        frame_phase: usize,
+    ) -> Self {
+        let kind = NativePetRenderProfileKind::from(profile);
+
+        Self { kind, frame_phase }
+    }
+}
+
+impl From<NativePetAnimationRenderProfile> for NativePetRenderProfileKind {
+    fn from(value: NativePetAnimationRenderProfile) -> Self {
+        match value {
+            NativePetAnimationRenderProfile::Idle => Self::Idle,
+            NativePetAnimationRenderProfile::GrabStart => Self::GrabStart,
+            NativePetAnimationRenderProfile::Drag => Self::Drag,
+            NativePetAnimationRenderProfile::RunLeft => Self::RunLeft,
+            NativePetAnimationRenderProfile::RunRight => Self::RunRight,
+            NativePetAnimationRenderProfile::Hover => Self::Hover,
+            NativePetAnimationRenderProfile::Wake => Self::Wake,
+            NativePetAnimationRenderProfile::Sleep => Self::Sleep,
+            NativePetAnimationRenderProfile::Approval => Self::Approval,
+            NativePetAnimationRenderProfile::Thinking => Self::Thinking,
+            NativePetAnimationRenderProfile::Working => Self::Working,
+            NativePetAnimationRenderProfile::Celebrate => Self::Celebrate,
+            NativePetAnimationRenderProfile::Dance => Self::Dance,
+            NativePetAnimationRenderProfile::Cast => Self::Cast,
+            NativePetAnimationRenderProfile::Sad => Self::Sad,
+            NativePetAnimationRenderProfile::Reassure => Self::Reassure,
+            NativePetAnimationRenderProfile::Explain => Self::Explain,
+            NativePetAnimationRenderProfile::Curious => Self::Curious,
+            NativePetAnimationRenderProfile::Tap => Self::Tap,
+            NativePetAnimationRenderProfile::TripFall => Self::TripFall,
+            NativePetAnimationRenderProfile::Fallen => Self::Fallen,
+            NativePetAnimationRenderProfile::FallenGetUp => Self::FallenGetUp,
+            NativePetAnimationRenderProfile::StumbleRecover => Self::StumbleRecover,
+        }
+    }
+}
+
+pub(super) fn native_pet_render_pose(
+    animations: &NativePetAnimationSet,
+    playback: NativePetAnimationPlayback,
+) -> NativePetRenderPose {
+    native_pet_render_pose_for_profile(NativePetRenderProfile::from_playback(animations, playback))
+}
+
+pub(super) fn native_pet_render_pose_for_profile(
+    profile: NativePetRenderProfile,
+) -> NativePetRenderPose {
+    let frame_phase = profile.frame_phase();
+
+    match profile.kind() {
+        NativePetRenderProfileKind::Idle => native_pet_idle_breathing_pose(frame_phase),
+        NativePetRenderProfileKind::GrabStart => native_pet_grab_start_pose(frame_phase),
+        NativePetRenderProfileKind::Drag => native_pet_drag_pose(frame_phase),
+        NativePetRenderProfileKind::RunLeft => native_pet_running_pose(frame_phase, -1.0),
+        NativePetRenderProfileKind::RunRight => native_pet_running_pose(frame_phase, 1.0),
+        NativePetRenderProfileKind::Hover => native_pet_hover_pose(frame_phase),
+        NativePetRenderProfileKind::Wake => native_pet_wake_pose(frame_phase),
+        NativePetRenderProfileKind::Sleep => native_pet_sleep_pose(frame_phase),
+        NativePetRenderProfileKind::Approval => native_pet_approval_pose(frame_phase),
+        NativePetRenderProfileKind::Thinking => native_pet_thinking_pose(frame_phase),
+        NativePetRenderProfileKind::Working => native_pet_working_pose(frame_phase),
+        NativePetRenderProfileKind::Celebrate => native_pet_celebrate_pose(frame_phase),
+        NativePetRenderProfileKind::Dance => NativePetRenderPose::default(),
+        NativePetRenderProfileKind::Cast => native_pet_cast_pose(frame_phase),
+        NativePetRenderProfileKind::Sad => native_pet_sad_pose(frame_phase),
+        NativePetRenderProfileKind::Reassure => native_pet_reassure_pose(frame_phase),
+        NativePetRenderProfileKind::Explain => native_pet_explain_pose(frame_phase),
+        NativePetRenderProfileKind::Curious => native_pet_curious_pose(frame_phase),
+        NativePetRenderProfileKind::Tap => native_pet_tap_pose(frame_phase),
+        NativePetRenderProfileKind::TripFall
+        | NativePetRenderProfileKind::Fallen
+        | NativePetRenderProfileKind::FallenGetUp
+        | NativePetRenderProfileKind::StumbleRecover => NativePetRenderPose::default(),
     }
 }
 
@@ -369,6 +472,48 @@ fn native_pet_celebrate_pose(frame_phase: usize) -> NativePetRenderPose {
             rotation_radians: 0.0,
             scale_x: 1.01,
             scale_y: 0.995,
+        },
+        _ => NativePetRenderPose::default(),
+    }
+}
+
+fn native_pet_cast_pose(frame_phase: usize) -> NativePetRenderPose {
+    match frame_phase {
+        1 => NativePetRenderPose {
+            offset_y: -2.0,
+            rotation_radians: -0.018,
+            scale_x: 0.99,
+            scale_y: 1.022,
+        },
+        2 => NativePetRenderPose {
+            offset_y: -4.0,
+            rotation_radians: -0.012,
+            scale_x: 0.982,
+            scale_y: 1.04,
+        },
+        3 => NativePetRenderPose {
+            offset_y: -3.0,
+            rotation_radians: 0.018,
+            scale_x: 0.99,
+            scale_y: 1.03,
+        },
+        4 => NativePetRenderPose {
+            offset_y: -1.0,
+            rotation_radians: 0.026,
+            scale_x: 1.006,
+            scale_y: 1.01,
+        },
+        5 => NativePetRenderPose {
+            offset_y: -2.0,
+            rotation_radians: 0.012,
+            scale_x: 0.994,
+            scale_y: 1.025,
+        },
+        6 => NativePetRenderPose {
+            offset_y: 0.4,
+            rotation_radians: 0.012,
+            scale_x: 1.004,
+            scale_y: 1.002,
         },
         _ => NativePetRenderPose::default(),
     }

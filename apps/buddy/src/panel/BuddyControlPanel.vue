@@ -31,13 +31,14 @@ import claudeIconUrl from '@/assets/brand/claude.svg'
 import codexIconUrl from '@/assets/brand/codex.svg'
 import { useBuddyWindowFrame } from '@/chat/useBuddyWindowFrame'
 import { useBuddyI18n } from '@/i18n/buddyI18n'
+import BuddyActionLogPanel from '@/panel/BuddyActionLogPanel.vue'
 import BuddyConversationLog from '@/panel/BuddyConversationLog.vue'
 import BuddySettingsRows from '@/panel/BuddySettingsRows.vue'
 import BuddyUsagePanel from '@/panel/BuddyUsagePanel.vue'
 import { createConversationLogRunRows } from '@/panel/runEventView'
 import { createRuntimeDiagnosticRows } from '@/panel/runtimeDiagnosticsView'
 
-type BuddyPanelPage = BuddyRuntime | 'usage' | 'logs' | 'settings'
+type BuddyPanelPage = BuddyRuntime | 'usage' | 'logs' | 'actionLogs' | 'settings'
 
 const props = defineProps<{
   appSettings: BuddyAppSettings
@@ -110,6 +111,7 @@ const AccountBadgeIcon = defineComponent({
 })
 const activePage = shallowRef<BuddyPanelPage>('codex')
 const selectedLogRunId = shallowRef<string | null>(null)
+const actionLogPlanCount = shallowRef(0)
 const missingValueLabel = '-'
 const { languageOptions, t } = useBuddyI18n(() => props.language)
 const resizeHandles: ReadonlyArray<{
@@ -171,6 +173,9 @@ const activeTitle = computed(() => {
 
   if (activePage.value === 'logs')
     return t('log.title')
+
+  if (activePage.value === 'actionLogs')
+    return t('actionLog.title')
 
   return t('page.settings')
 })
@@ -346,6 +351,10 @@ function openPage(page: BuddyPanelPage) {
 
 function selectLogRun(runId: string) {
   selectedLogRunId.value = runId
+}
+
+function updateActionLogPlanCount(count: number) {
+  actionLogPlanCount.value = count
 }
 
 function updateRuntimeVisibility(runtime: BuddyRuntime, enabled: boolean) {
@@ -808,6 +817,22 @@ function resolveDirectoryPath(path: string) {
             : t('control.noRecords') }}
         </small>
       </article>
+
+      <article
+        class="buddy-control__log-card"
+        :class="{ 'is-active': activePage === 'actionLogs' }"
+        tabindex="0"
+        @click="openPage('actionLogs')"
+        @keydown.enter="openPage('actionLogs')"
+        @keydown.space.prevent="openPage('actionLogs')"
+      >
+        <strong>{{ t('actionLog.title') }}</strong>
+        <small>
+          {{ actionLogPlanCount > 0
+            ? t('control.logCount', { count: actionLogPlanCount })
+            : t('control.noRecords') }}
+        </small>
+      </article>
     </aside>
 
     <main class="buddy-control__main">
@@ -946,6 +971,16 @@ function resolveDirectoryPath(path: string) {
             :language="language"
             :rows="conversationLogRows"
             @select-run="selectLogRun"
+          />
+        </section>
+
+        <section
+          v-else-if="activePage === 'actionLogs'"
+          class="buddy-control__page buddy-control__page--action-logs"
+        >
+          <BuddyActionLogPanel
+            :language="language"
+            @update-plan-count="updateActionLogPlanCount"
           />
         </section>
 
@@ -1464,7 +1499,8 @@ function resolveDirectoryPath(path: string) {
   overflow: auto;
 }
 
-.buddy-control__page--logs {
+.buddy-control__page--logs,
+.buddy-control__page--action-logs {
   overflow: hidden;
 }
 

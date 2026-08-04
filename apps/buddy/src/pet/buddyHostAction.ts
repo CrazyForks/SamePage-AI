@@ -1,99 +1,41 @@
-import type { BuddyChatRunEvent } from '@/lib/tauriRuntime'
-import type {
-  BuddyAiAnimationIntent,
-  BuddyAiAnimationIntentName,
-  BuddyAnimationName,
-  BuddyAnimationPriority,
-} from '@/pet/buddyAnimation'
+import type { BuddyChatRunEvent, BuddyChoreographyMacroIntent } from '@/lib/tauriRuntime'
+import type { BuddyAnimationPriority } from '@/pet/buddyAnimation'
 
-export type BuddyNativePetMoveTarget
-  = | { kind: 'center' }
-    | { kind: 'home' }
-    | { kind: 'edge', edge: 'left' | 'right' | 'top' | 'bottom' }
-    | { kind: 'position', x: number, y: number }
-    | { kind: 'x', x: number }
-
-export type BuddyNativePetHostAction
-  = | BuddyNativePetHostAnimationAction
-    | BuddyNativePetHostMoveAction
-    | BuddyNativePetHostSequenceAction
-
-export interface BuddyNativePetHostAnimationAction {
-  action: 'animation'
-  animation: BuddyAnimationName
-  durationMs?: number
-  priority?: BuddyAnimationPriority
-  reason?: string
-  version?: 1
-}
-
-export interface BuddyNativePetHostMoveAction {
-  action: 'move'
-  after?: BuddyAnimationName
-  reason?: string
-  target: BuddyNativePetMoveTarget
-  version?: 1
-}
-
-export interface BuddyNativePetHostSequenceAction {
-  action: 'sequence'
-  reason?: string
-  steps: BuddyNativePetHostActionStep[]
-  version?: 1
-}
-
-export type BuddyNativePetHostActionStep
-  = | BuddyNativePetHostAnimationStep
-    | BuddyNativePetHostMoveStep
-
-export interface BuddyNativePetHostAnimationStep {
-  animation: BuddyAnimationName
-  durationMs?: number
-  priority?: BuddyAnimationPriority
-  reason?: string
-  type: 'animation'
-}
-
-export interface BuddyNativePetHostMoveStep {
-  after?: BuddyAnimationName
-  reason?: string
-  target: BuddyNativePetMoveTarget
-  type: 'move'
-}
-
-export interface BuddyResolvedNativePetHostAction {
-  action: BuddyNativePetHostAction
+export interface BuddyResolvedChoreographyMacroIntent {
   createdAt?: string
   eventId?: number
+  intent: BuddyChoreographyMacroIntent
   runId?: string
+  runtime?: BuddyChoreographyMacroIntentRuntimeFields
 }
 
-const BUDDY_NATIVE_PET_ANIMATION_NAMES = new Set<BuddyAnimationName>([
-  'approval',
-  'celebrate',
-  'curious',
-  'drag',
-  'explain',
-  'fallen_get_up_left',
-  'fallen_get_up_right',
-  'fallen_idle_left',
-  'fallen_idle_right',
-  'hover',
-  'idle',
-  'reassure',
-  'run_left',
-  'run_right',
-  'sad',
-  'sleep',
-  'stumble_recover_left',
-  'stumble_recover_right',
-  'tap',
-  'thinking',
-  'trip_fall_left',
-  'trip_fall_right',
-  'wake',
-  'working',
-])
+export type BuddyChoreographyMacroIntentSourceRef
+  = | BuddyChoreographyMacroIntentConversationMessageSourceRef
+    | BuddyChoreographyMacroIntentRunSourceRef
+    | BuddyChoreographyMacroIntentApprovalSourceRef
+
+export interface BuddyChoreographyMacroIntentConversationMessageSourceRef {
+  conversationId: string
+  kind: 'conversationMessage'
+  messageId: string
+  runId?: string | null
+}
+
+export interface BuddyChoreographyMacroIntentRunSourceRef {
+  kind: 'run'
+  runId: string
+}
+
+export interface BuddyChoreographyMacroIntentApprovalSourceRef {
+  approvalId: string
+  kind: 'approval'
+  runId?: string | null
+}
+
+export interface BuddyChoreographyMacroIntentRuntimeFields {
+  priority?: BuddyAnimationPriority
+  reason?: string
+}
 
 const BUDDY_NATIVE_PET_HOST_PRIORITIES = new Set<BuddyAnimationPriority>([
   'background',
@@ -101,327 +43,259 @@ const BUDDY_NATIVE_PET_HOST_PRIORITIES = new Set<BuddyAnimationPriority>([
   'normal',
   'urgent',
 ])
+const BUDDY_HOST_ACTION_REASON_MAX_LENGTH = 120
+const BUDDY_HOST_ACTION_SOURCE = 'buddy_builtin_host_skill'
 
-export function resolveBuddyNativePetHostActionFromRunEvents(
+export const BUDDY_HOST_ACTION_PUBLIC_MACRO_IDS = [
+  'celebrate',
+  'dance',
+  'lieDown',
+  'patrolAroundScreen',
+  'reassure',
+  'sad',
+  'thinking',
+  'working',
+  'curious',
+  'awaitApproval',
+  'getUp',
+  'peekFromEdge',
+  'peekBehindWindow',
+  'cast',
+] as const satisfies ReadonlyArray<BuddyChoreographyMacroIntent['macroId']>
+
+export const BUDDY_HOST_ACTION_PUBLIC_MACRO_PARAM_BOUNDS = {
+  dance: {
+    durationMs: {
+      max: 30_000,
+      min: 1_000,
+    },
+  },
+  patrolAroundScreen: {
+    loops: {
+      max: 4,
+      min: 1,
+    },
+  },
+  peekBehindWindow: {
+    durationMs: {
+      max: 15_000,
+      min: 500,
+    },
+  },
+} as const
+
+const BUDDY_HOST_ACTION_EMPTY_PARAM_MACRO_IDS = new Set<BuddyChoreographyMacroIntent['macroId']>([
+  'awaitApproval',
+  'cast',
+  'celebrate',
+  'curious',
+  'lieDown',
+  'reassure',
+  'sad',
+  'thinking',
+  'working',
+])
+
+export function resolveBuddyChoreographyMacroIntentFromRunEvents(
   events: ReadonlyArray<BuddyChatRunEvent>,
-): BuddyResolvedNativePetHostAction | null {
+): BuddyResolvedChoreographyMacroIntent | null {
   for (let index = events.length - 1; index >= 0; index -= 1) {
     const event = events[index]
     if (event.eventType !== 'host.action')
       continue
 
-    const action = normalizeBuddyNativePetHostAction(event.payload)
-    if (!action)
+    const resolved = normalizeBuddyChoreographyMacroIntent(event.payload)
+    if (!resolved)
       continue
 
     return {
-      action,
       createdAt: event.createdAt,
       eventId: event.id,
+      intent: resolved.intent,
       runId: event.runId,
+      runtime: resolved.runtime,
     }
   }
 
   return null
 }
 
-export function createBuddyNativePetHostActionPlaybackKey(
-  resolved: BuddyResolvedNativePetHostAction | null,
+export function createBuddyChoreographyMacroIntentPlaybackKey(
+  resolved: BuddyResolvedChoreographyMacroIntent | null,
 ): string | null {
   if (!resolved)
     return null
 
-  return `host.action:${resolved.runId ?? 'run'}:${resolved.eventId ?? 'event'}`
+  return `host.action.macroIntent:${resolved.runId ?? 'run'}:${resolved.eventId ?? 'event'}`
 }
 
-export function resolveBuddyAiAnimationIntentFromHostAction(
-  resolved: BuddyResolvedNativePetHostAction | null,
-  nowUnixMs = Date.now(),
-): BuddyAiAnimationIntent | null {
-  const animation = firstBuddyNativePetHostAnimation(resolved?.action ?? null)
-  if (!animation)
+export function resolveBuddyChoreographyMacroIntentSourceRef(
+  resolved: BuddyResolvedChoreographyMacroIntent | null,
+): BuddyChoreographyMacroIntentSourceRef | null {
+  if (!resolved?.runId)
     return null
 
-  const intent = mapBuddyNativePetHostAnimationToAiIntent(animation.animation)
+  return {
+    kind: 'run',
+    runId: resolved.runId,
+  }
+}
+
+export function isBuddyChoreographyMacroIntentFresh(
+  resolved: BuddyResolvedChoreographyMacroIntent | null,
+  shellStartedAtUnixMs: number,
+): boolean {
+  return isBuddyHostActionEventFresh(resolved, shellStartedAtUnixMs)
+}
+
+function isBuddyHostActionEventFresh(
+  resolved: { createdAt?: string } | null,
+  shellStartedAtUnixMs: number,
+): boolean {
+  if (!resolved?.createdAt || !Number.isFinite(shellStartedAtUnixMs))
+    return false
+
+  const createdAtUnixMs = Date.parse(resolved.createdAt)
+  if (!Number.isFinite(createdAtUnixMs))
+    return false
+
+  return createdAtUnixMs >= shellStartedAtUnixMs
+}
+
+function normalizeBuddyChoreographyMacroIntent(
+  payload: unknown,
+): { intent: BuddyChoreographyMacroIntent, runtime?: BuddyChoreographyMacroIntentRuntimeFields } | null {
+  if (!isRecord(payload))
+    return null
+
+  if (!hasOnlyRecordKeys(payload, ['action', 'intent', 'version', 'priority', 'reason', 'source']))
+    return null
+
+  if (payload.version !== 1)
+    return null
+
+  if (payload.action !== 'macroIntent')
+    return null
+
+  const runtime = normalizeBuddyNativePetHostCommonFields(payload)
+  if (!runtime)
+    return null
+
+  const intent = normalizeBuddyChoreographyMacroIntentValue(payload.intent)
   if (!intent)
     return null
 
-  const expiresAtUnixMs = inferBuddyNativePetHostActionExpiration(
-    animation.durationMs,
-    resolved?.createdAt,
-  )
-  if (expiresAtUnixMs !== undefined && expiresAtUnixMs <= nowUnixMs)
-    return null
-
-  return {
-    durationMs: animation.durationMs,
-    expiresAtUnixMs,
-    intent,
-    priority: animation.priority,
-    reason: animation.reason,
-  }
+  return hasBuddyChoreographyMacroIntentRuntimeFields(runtime) ? { intent, runtime } : { intent }
 }
 
-function normalizeBuddyNativePetHostAction(payload: unknown): BuddyNativePetHostAction | null {
-  if (!isRecord(payload))
+function normalizeBuddyChoreographyMacroIntentValue(
+  value: unknown,
+): BuddyChoreographyMacroIntent | null {
+  if (
+    !isRecord(value)
+    || !hasExactRecordKeys(value, ['macroId', 'params'])
+    || typeof value.macroId !== 'string'
+  ) {
+    return null
+  }
+
+  const params = isRecord(value.params) ? value.params : null
+  if (!params)
     return null
 
-  if (payload.version !== undefined && payload.version !== 1)
-    return null
+  if (isBuddyHostActionEmptyParamMacroId(value.macroId)) {
+    return isEmptyRecord(params)
+      ? { macroId: value.macroId, params: {} }
+      : null
+  }
 
-  switch (payload.action) {
-    case 'animation':
-      return normalizeBuddyNativePetHostAnimationAction(payload)
-    case 'move':
-      return normalizeBuddyNativePetHostMoveAction(payload)
-    case 'sequence':
-      return normalizeBuddyNativePetHostSequenceAction(payload)
+  switch (value.macroId) {
+    case 'dance':
+      return hasExactRecordKeys(params, ['durationMs'])
+        && isDanceMacroDurationMs(params.durationMs)
+        ? { macroId: 'dance', params: { durationMs: params.durationMs } }
+        : null
+    case 'patrolAroundScreen':
+      return hasExactRecordKeys(params, ['loops'])
+        && isFiniteLoopCount(params.loops)
+        ? { macroId: 'patrolAroundScreen', params: { loops: params.loops } }
+        : null
+    case 'getUp':
+      return hasExactRecordKeys(params, ['side'])
+        && isGetUpSide(params.side)
+        ? { macroId: 'getUp', params: { side: params.side } }
+        : null
+    case 'peekFromEdge':
+      return hasExactRecordKeys(params, ['edge'])
+        && isBuddyNativePetEdge(params.edge)
+        ? { macroId: 'peekFromEdge', params: { edge: params.edge } }
+        : null
+    case 'peekBehindWindow':
+      return normalizePeekBehindWindowMacroIntent(params)
     default:
       return null
   }
 }
 
-function normalizeBuddyNativePetHostAnimationAction(
-  payload: Record<string, unknown>,
-): BuddyNativePetHostAnimationAction | null {
-  if (!isBuddyNativePetAnimationName(payload.animation))
+function normalizePeekBehindWindowMacroIntent(
+  params: Record<string, unknown>,
+): BuddyChoreographyMacroIntent | null {
+  if (
+    !hasExactRecordKeys(params, ['windowSelector', 'edge', 'reveal', 'durationMs'])
+    || !isRecord(params.windowSelector)
+    || !hasExactRecordKeys(params.windowSelector, ['kind'])
+    || params.windowSelector.kind !== 'activeWindow'
+    || !isBuddyNativePetWindowAnchorEdge(params.edge)
+    || params.reveal !== 'head'
+    || !isPeekBehindWindowMacroDurationMs(params.durationMs)
+  ) {
     return null
-
-  const common = normalizeBuddyNativePetHostAnimationFields(payload)
-  if (!common)
-    return null
+  }
 
   return {
-    action: 'animation',
-    animation: payload.animation,
-    ...common,
-    version: 1,
+    macroId: 'peekBehindWindow',
+    params: {
+      durationMs: params.durationMs,
+      edge: params.edge,
+      reveal: 'head',
+      windowSelector: {
+        kind: 'activeWindow',
+      },
+    },
   }
 }
 
-function normalizeBuddyNativePetHostMoveAction(
+function normalizeBuddyNativePetHostCommonFields(
   payload: Record<string, unknown>,
-): BuddyNativePetHostMoveAction | null {
-  const target = normalizeBuddyNativePetMoveTarget(payload.target)
-  if (!target)
-    return null
-
-  const moveFields = normalizeBuddyNativePetMoveFields(payload)
-  if (!moveFields)
-    return null
-
-  return {
-    action: 'move',
-    target,
-    ...moveFields,
-    version: 1,
-  }
-}
-
-function normalizeBuddyNativePetHostSequenceAction(
-  payload: Record<string, unknown>,
-): BuddyNativePetHostSequenceAction | null {
-  if (!Array.isArray(payload.steps) || payload.steps.length < 1 || payload.steps.length > 8)
-    return null
-
-  const steps = payload.steps.map(normalizeBuddyNativePetHostActionStep)
-  if (steps.includes(null))
-    return null
-
-  const reason = typeof payload.reason === 'string' && payload.reason.trim()
-    ? payload.reason.trim()
-    : undefined
-
-  return {
-    action: 'sequence',
-    reason,
-    steps: steps as BuddyNativePetHostActionStep[],
-    version: 1,
-  }
-}
-
-function normalizeBuddyNativePetHostActionStep(
-  payload: unknown,
-): BuddyNativePetHostActionStep | null {
-  if (!isRecord(payload))
-    return null
-
-  switch (payload.type ?? payload.action) {
-    case 'animation': {
-      if (!isBuddyNativePetAnimationName(payload.animation))
-        return null
-      const common = normalizeBuddyNativePetHostAnimationFields(payload)
-      if (!common)
-        return null
-
-      return {
-        animation: payload.animation,
-        ...common,
-        type: 'animation',
-      }
-    }
-    case 'move': {
-      const target = normalizeBuddyNativePetMoveTarget(payload.target)
-      if (!target)
-        return null
-      const moveFields = normalizeBuddyNativePetMoveFields(payload)
-      if (!moveFields)
-        return null
-
-      return {
-        target,
-        ...moveFields,
-        type: 'move',
-      }
-    }
-    default:
-      return null
-  }
-}
-
-function normalizeBuddyNativePetHostAnimationFields(
-  payload: Record<string, unknown>,
-): Pick<BuddyNativePetHostAnimationAction, 'durationMs' | 'priority' | 'reason'> | null {
-  const durationMs = payload.durationMs
-  if (durationMs !== undefined && !isFiniteDurationMs(durationMs))
-    return null
-
+): BuddyChoreographyMacroIntentRuntimeFields | null {
   const priority = payload.priority
   if (priority !== undefined && !isBuddyNativePetHostPriority(priority))
     return null
 
-  const reason = typeof payload.reason === 'string' && payload.reason.trim()
-    ? payload.reason.trim()
-    : undefined
-
-  return {
-    durationMs,
-    priority,
-    reason,
-  }
-}
-
-function normalizeBuddyNativePetMoveFields(
-  payload: Record<string, unknown>,
-): Pick<BuddyNativePetHostMoveAction, 'after' | 'reason'> | null {
-  const after = payload.after
-  if (after !== undefined && !isBuddyNativePetAnimationName(after))
+  const reason = payload.reason
+  if (reason !== undefined && !isBuddyNativePetHostReason(reason))
     return null
 
-  const reason = typeof payload.reason === 'string' && payload.reason.trim()
-    ? payload.reason.trim()
-    : undefined
-
-  return {
-    after,
-    reason,
-  }
-}
-
-function normalizeBuddyNativePetMoveTarget(value: unknown): BuddyNativePetMoveTarget | null {
-  if (value === 'center' || value === 'home')
-    return { kind: value }
-
-  if (!isRecord(value) || typeof value.kind !== 'string')
+  if (payload.source !== BUDDY_HOST_ACTION_SOURCE)
     return null
 
-  switch (value.kind) {
-    case 'center':
-    case 'home':
-      return { kind: value.kind }
-    case 'edge':
-      return isBuddyNativePetEdge(value.edge)
-        ? { kind: 'edge', edge: value.edge }
-        : null
-    case 'position':
-      return isFiniteCoordinate(value.x) && isFiniteCoordinate(value.y)
-        ? { kind: 'position', x: value.x, y: value.y }
-        : null
-    case 'x':
-      return isFiniteCoordinate(value.x)
-        ? { kind: 'x', x: value.x }
-        : null
-    default:
-      return null
-  }
+  const fields: BuddyChoreographyMacroIntentRuntimeFields = {}
+  if (priority !== undefined)
+    fields.priority = priority
+  if (reason !== undefined)
+    fields.reason = reason
+
+  return fields
 }
 
-function firstBuddyNativePetHostAnimation(
-  action: BuddyNativePetHostAction | null,
-): BuddyNativePetHostAnimationAction | BuddyNativePetHostAnimationStep | null {
-  if (!action)
-    return null
-
-  if (action.action === 'animation')
-    return action
-
-  if (action.action !== 'sequence')
-    return null
-
-  return action.steps.find(isBuddyNativePetHostAnimationStep) ?? null
-}
-
-function isBuddyNativePetHostAnimationStep(
-  step: BuddyNativePetHostActionStep,
-): step is BuddyNativePetHostAnimationStep {
-  return step.type === 'animation'
-}
-
-function mapBuddyNativePetHostAnimationToAiIntent(
-  animation: BuddyAnimationName,
-): BuddyAiAnimationIntentName | null {
-  switch (animation) {
-    case 'thinking':
-    case 'working':
-      return 'focus'
-    case 'celebrate':
-    case 'curious':
-    case 'explain':
-    case 'idle':
-    case 'reassure':
-    case 'run_left':
-    case 'run_right':
-    case 'sleep':
-    case 'stumble_recover_left':
-    case 'stumble_recover_right':
-    case 'trip_fall_left':
-    case 'trip_fall_right':
-    case 'wake':
-      return animation
-    case 'approval':
-    case 'drag':
-    case 'drop_land':
-    case 'fallen_get_up_left':
-    case 'fallen_get_up_right':
-    case 'fallen_idle_left':
-    case 'fallen_idle_right':
-    case 'hover':
-    case 'sad':
-    case 'tap':
-      return null
-  }
-}
-
-function inferBuddyNativePetHostActionExpiration(
-  durationMs: number | undefined,
-  createdAt: string | undefined,
-): number | undefined {
-  if (durationMs === undefined || createdAt === undefined)
-    return undefined
-
-  const createdAtUnixMs = Date.parse(createdAt)
-  return Number.isFinite(createdAtUnixMs)
-    ? createdAtUnixMs + durationMs
-    : undefined
+function hasBuddyChoreographyMacroIntentRuntimeFields(
+  value: BuddyChoreographyMacroIntentRuntimeFields,
+): boolean {
+  return value.priority !== undefined || value.reason !== undefined
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null
-}
-
-function isBuddyNativePetAnimationName(value: unknown): value is BuddyAnimationName {
-  return typeof value === 'string'
-    && BUDDY_NATIVE_PET_ANIMATION_NAMES.has(value as BuddyAnimationName)
 }
 
 function isBuddyNativePetHostPriority(value: unknown): value is BuddyAnimationPriority {
@@ -429,17 +303,88 @@ function isBuddyNativePetHostPriority(value: unknown): value is BuddyAnimationPr
     && BUDDY_NATIVE_PET_HOST_PRIORITIES.has(value as BuddyAnimationPriority)
 }
 
+function isBuddyNativePetHostReason(value: unknown): value is string {
+  return typeof value === 'string'
+    && value.length > 0
+    && value.length <= BUDDY_HOST_ACTION_REASON_MAX_LENGTH
+    && /^[a-z][a-z0-9]*(?:_[a-z0-9]+)*$/.test(value)
+}
+
+function isBuddyHostActionEmptyParamMacroId(
+  value: string,
+): value is 'awaitApproval' | 'cast' | 'celebrate' | 'curious' | 'lieDown' | 'reassure' | 'sad' | 'thinking' | 'working' {
+  return BUDDY_HOST_ACTION_EMPTY_PARAM_MACRO_IDS.has(value as BuddyChoreographyMacroIntent['macroId'])
+}
+
 function isBuddyNativePetEdge(value: unknown): value is 'left' | 'right' | 'top' | 'bottom' {
   return value === 'left' || value === 'right' || value === 'top' || value === 'bottom'
 }
 
-function isFiniteCoordinate(value: unknown): value is number {
-  return typeof value === 'number' && Number.isFinite(value)
+function isBuddyNativePetWindowAnchorEdge(
+  value: unknown,
+): value is 'auto' | 'left' | 'right' | 'top' | 'bottom' {
+  return value === 'auto' || isBuddyNativePetEdge(value)
 }
 
-function isFiniteDurationMs(value: unknown): value is number {
+function isGetUpSide(value: unknown): value is 'left' | 'right' {
+  return value === 'left' || value === 'right'
+}
+
+function isDanceMacroDurationMs(value: unknown): value is number {
+  const bounds = BUDDY_HOST_ACTION_PUBLIC_MACRO_PARAM_BOUNDS.dance.durationMs
+
+  return isIntegerDurationMsInRange(
+    value,
+    bounds.min,
+    bounds.max,
+  )
+}
+
+function isPeekBehindWindowMacroDurationMs(value: unknown): value is number {
+  const bounds = BUDDY_HOST_ACTION_PUBLIC_MACRO_PARAM_BOUNDS.peekBehindWindow.durationMs
+
+  return isIntegerDurationMsInRange(
+    value,
+    bounds.min,
+    bounds.max,
+  )
+}
+
+function isIntegerDurationMsInRange(
+  value: unknown,
+  minDurationMs: number,
+  maxDurationMs: number,
+): value is number {
   return typeof value === 'number'
-    && Number.isFinite(value)
-    && value >= 100
-    && value <= 30000
+    && Number.isInteger(value)
+    && value >= minDurationMs
+    && value <= maxDurationMs
+}
+
+function isFiniteLoopCount(value: unknown): value is number {
+  const bounds = BUDDY_HOST_ACTION_PUBLIC_MACRO_PARAM_BOUNDS.patrolAroundScreen.loops
+
+  return Number.isInteger(value)
+    && Number(value) >= bounds.min
+    && Number(value) <= bounds.max
+}
+
+function isEmptyRecord(value: Record<string, unknown>): boolean {
+  return Object.keys(value).length === 0
+}
+
+function hasExactRecordKeys(
+  value: Record<string, unknown>,
+  keys: readonly string[],
+): boolean {
+  const actualKeys = Object.keys(value)
+  return actualKeys.length === keys.length
+    && keys.every(key => Object.hasOwn(value, key))
+}
+
+function hasOnlyRecordKeys(
+  value: Record<string, unknown>,
+  keys: readonly string[],
+): boolean {
+  return Object.keys(value).every(key => keys.includes(key))
 }

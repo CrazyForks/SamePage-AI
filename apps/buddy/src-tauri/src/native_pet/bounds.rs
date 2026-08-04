@@ -218,8 +218,8 @@ fn native_pet_clamp_to_monitor(
     let min_x = bounds.x - window_size.width + horizontal_reveal;
     let min_y = bounds.y - window_size.height + top_reveal;
     let max_x = (bounds.right() - horizontal_reveal).max(min_x);
-    let max_y =
-        (bounds.bottom() - window_size.height - policy.monitor_margin_logical_px).max(min_y);
+    let bottom_reveal = native_pet_edge_reveal_logical_px(window_size.height, policy);
+    let max_y = (bounds.bottom() - bottom_reveal).max(min_y);
 
     NativePetPosition {
         x: requested_position.x.clamp(min_x, max_x),
@@ -236,7 +236,6 @@ mod tests {
     use super::{
         native_pet_initial_placement, native_pet_resolve_window_placement,
         NativePetBoundaryStrategy, NativePetBoundsPolicy, NativePetWindowVisibility,
-        NATIVE_PET_BOUNDS_POLICY,
     };
     use crate::native_pet::{
         coordinates::{
@@ -276,7 +275,7 @@ mod tests {
     }
 
     #[test]
-    fn clamps_window_within_single_monitor_bounds() {
+    fn clamps_window_to_edge_reveal_bounds() {
         let layout = single_monitor_layout();
         let resolution = native_pet_resolve_window_placement(
             &layout,
@@ -290,7 +289,7 @@ mod tests {
         assert!(resolution.was_clamped);
         assert_eq!(
             resolution.placement.position,
-            NativePetPosition { x: 1824, y: 836 }
+            NativePetPosition { x: 1824, y: 944 }
         );
     }
 
@@ -321,6 +320,13 @@ mod tests {
             None,
             &policy,
         );
+        let bottom = native_pet_resolve_window_placement(
+            &layout,
+            NativePetPosition { x: 320, y: 944 },
+            window_size,
+            None,
+            &policy,
+        );
 
         assert_eq!(
             left.placement.position,
@@ -331,6 +337,10 @@ mod tests {
             NativePetPosition { x: 1800, y: 120 }
         );
         assert_eq!(top.placement.position, NativePetPosition { x: 320, y: -60 });
+        assert_eq!(
+            bottom.placement.position,
+            NativePetPosition { x: 320, y: 944 }
+        );
     }
 
     #[test]
@@ -398,38 +408,28 @@ mod tests {
     }
 
     #[test]
-    fn resolves_initial_placement_to_primary_monitor_bottom_right_workarea() {
-        let layout = multi_monitor_layout();
-        let placement = native_pet_initial_placement(
-            &layout,
-            NativePetLogicalSize::new(320, 180),
-            &NativePetBoundsPolicy::default(),
-        );
-
-        assert_eq!(placement.monitor_index, Some(1));
-        assert_eq!(placement.position, NativePetPosition { x: 2216, y: 1236 });
-    }
-
-    #[test]
     fn resolves_initial_placement_from_runtime_window_size() {
         let layout = multi_monitor_layout();
-        let placement = native_pet_initial_placement(
-            &layout,
-            NativePetLogicalSize::new(480, 240),
-            &NativePetBoundsPolicy::default(),
-        );
+        let cases = [
+            (
+                NativePetLogicalSize::new(320, 180),
+                NativePetPosition { x: 2216, y: 1236 },
+            ),
+            (
+                NativePetLogicalSize::new(480, 240),
+                NativePetPosition { x: 2056, y: 1176 },
+            ),
+        ];
 
-        assert_eq!(placement.monitor_index, Some(1));
-        assert_eq!(placement.position, NativePetPosition { x: 2056, y: 1176 });
-    }
+        for (window_size, expected_position) in cases {
+            let placement = native_pet_initial_placement(
+                &layout,
+                window_size,
+                &NativePetBoundsPolicy::default(),
+            );
 
-    #[test]
-    fn exposes_clamp_only_strategy_for_stage_three() {
-        assert_eq!(
-            NATIVE_PET_BOUNDS_POLICY.strategy,
-            NativePetBoundaryStrategy::Clamp
-        );
-        assert_eq!(NATIVE_PET_BOUNDS_POLICY.monitor_margin_logical_px, 24);
-        assert_eq!(NATIVE_PET_BOUNDS_POLICY.edge_reveal_logical_px, 96);
+            assert_eq!(placement.monitor_index, Some(1));
+            assert_eq!(placement.position, expected_position);
+        }
     }
 }

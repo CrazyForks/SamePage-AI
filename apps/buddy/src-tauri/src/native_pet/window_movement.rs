@@ -50,10 +50,16 @@ pub(super) fn native_pet_reconcile_visible_placement(
     current_position: NativePetPosition,
     current_monitor_index: Option<i32>,
     window_size: NativePetLogicalSize,
+    force_native_refresh: bool,
     drag_debug: bool,
 ) {
     let bounds = native_pet_runtime_resolve_window_placement(current_position, window_size, None);
-    if !native_pet_bounds_changed(bounds, current_position, current_monitor_index) {
+    if !native_pet_bounds_changed(
+        bounds,
+        current_position,
+        current_monitor_index,
+        force_native_refresh,
+    ) {
         return;
     }
 
@@ -75,7 +81,39 @@ fn native_pet_bounds_changed(
     bounds: NativePetBoundsResolution,
     current_position: NativePetPosition,
     current_monitor_index: Option<i32>,
+    force_native_refresh: bool,
 ) -> bool {
-    bounds.placement.position != current_position
+    force_native_refresh
+        || bounds.placement.position != current_position
         || bounds.placement.monitor_index != current_monitor_index
+}
+
+#[cfg(test)]
+mod tests {
+    use super::native_pet_bounds_changed;
+    use crate::native_pet::{
+        bounds::{
+            NativePetBoundaryStrategy, NativePetBoundsResolution, NativePetWindowPlacement,
+            NativePetWindowVisibility,
+        },
+        coordinates::NativePetPosition,
+    };
+
+    #[test]
+    fn reapplies_placement_when_native_surface_refresh_is_requested() {
+        let position = NativePetPosition { x: 320, y: 240 };
+        let bounds = NativePetBoundsResolution {
+            placement: NativePetWindowPlacement {
+                monitor_index: Some(0),
+                layer_shell_position: position,
+                position,
+            },
+            strategy: NativePetBoundaryStrategy::Clamp,
+            visibility: NativePetWindowVisibility::FullyVisible,
+            was_clamped: false,
+            was_recovered: false,
+        };
+
+        assert!(native_pet_bounds_changed(bounds, position, Some(0), true));
+    }
 }

@@ -172,23 +172,15 @@ mod tests {
     }
 
     #[test]
-    fn resolves_codex_login_status_from_json_output() {
-        assert_eq!(
-            resolve_codex_login_status(Some(r#"{"loggedIn":true}"#)),
-            "logged_in"
-        );
-    }
+    fn resolves_codex_login_status_from_supported_probe_outputs() {
+        let cases = [
+            (r#"{"loggedIn":true}"#, "logged_in"),
+            ("Not logged in. Run codex login.", "logged_out"),
+            ("", "unknown"),
+        ];
 
-    #[test]
-    fn resolves_codex_login_status_from_text_output() {
-        assert_eq!(
-            resolve_codex_login_status(Some("Not logged in. Run codex login.")),
-            "logged_out"
-        );
-    }
-
-    #[test]
-    fn resolves_unknown_codex_login_status_from_empty_output() {
-        assert_eq!(resolve_codex_login_status(Some("")), "unknown");
+        for (output, expected) in cases {
+            assert_eq!(resolve_codex_login_status(Some(output)), expected);
+        }
     }
 }

@@ -36,6 +36,9 @@ jobs:
       - name: Run installed Buddy health smoke
         run: lexora-buddy --buddy-health-check
 
+      - name: Run installed native pet manifest smoke
+        run: lexora-buddy --buddy-native-pet-smoke-check
+
       - name: Write AUR install readiness evidence
         env:
           LEXORA_BUDDY_EVIDENCE_KIND: aur-install

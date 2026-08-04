@@ -40,6 +40,7 @@ impl BuddyStorage {
 
     pub fn new_with_buddy_home(database_path: PathBuf, buddy_home: PathBuf) -> Self {
         Self {
+            action_log_writer: Default::default(),
             database_path,
             local_logs: LocalLogRuntime::new(buddy_home),
         }
@@ -59,6 +60,7 @@ impl BuddyStorage {
     #[cfg(test)]
     pub(super) fn new_fixed_for_test(database_path: PathBuf, buddy_home: PathBuf) -> Self {
         Self {
+            action_log_writer: Default::default(),
             database_path,
             local_logs: LocalLogRuntime::fixed_for_test(
                 buddy_home,

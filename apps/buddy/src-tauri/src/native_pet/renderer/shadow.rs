@@ -1,8 +1,11 @@
 use super::super::{
-    animation::{NativePetAnimationName, NativePetAnimationPlayback},
+    animation::{NativePetAnimationPlayback, NativePetAnimationSet, NativePetSpritesheetGeometry},
     geometry::{native_pet_target_size, native_pet_window_size, PET_FRAME_BOTTOM_MARGIN},
 };
-use super::pose::{native_pet_render_pose, NativePetRenderPose};
+use super::pose::{
+    native_pet_render_pose_for_profile, NativePetRenderPose, NativePetRenderProfile,
+    NativePetRenderProfileKind,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub(super) struct NativePetContactShadow {
@@ -14,51 +17,52 @@ pub(super) struct NativePetContactShadow {
 }
 
 pub(super) fn native_pet_contact_shadow(
+    geometry: NativePetSpritesheetGeometry,
+    animations: &NativePetAnimationSet,
     playback: NativePetAnimationPlayback,
 ) -> NativePetContactShadow {
-    let (target_width, _) = native_pet_target_size();
-    let (window_width, window_height) = native_pet_window_size();
-    let pose = native_pet_render_pose(playback);
-    let (width_factor, opacity) = match playback.name {
-        NativePetAnimationName::Idle => native_pet_idle_shadow_weight(playback.frame_phase),
-        NativePetAnimationName::GrabStart => native_pet_pickup_shadow_weight(playback.frame_phase),
-        NativePetAnimationName::Drag => native_pet_drag_shadow_weight(playback.frame_phase),
-        NativePetAnimationName::RunLeft | NativePetAnimationName::RunRight => {
-            native_pet_running_shadow_weight(playback.frame_phase)
+    let (target_width, _) = native_pet_target_size(geometry);
+    let (window_width, window_height) = native_pet_window_size(geometry);
+    let profile = NativePetRenderProfile::from_playback(animations, playback);
+    let pose = native_pet_render_pose_for_profile(profile);
+    let frame_phase = profile.frame_phase();
+    let (width_factor, opacity) = match profile.kind() {
+        NativePetRenderProfileKind::Idle => native_pet_idle_shadow_weight(frame_phase),
+        NativePetRenderProfileKind::GrabStart => native_pet_pickup_shadow_weight(frame_phase),
+        NativePetRenderProfileKind::Drag => native_pet_drag_shadow_weight(frame_phase),
+        NativePetRenderProfileKind::RunLeft | NativePetRenderProfileKind::RunRight => {
+            native_pet_running_shadow_weight(frame_phase)
         }
-        NativePetAnimationName::Approval => native_pet_approval_shadow_weight(playback.frame_phase),
-        NativePetAnimationName::Thinking => native_pet_thinking_shadow_weight(playback.frame_phase),
-        NativePetAnimationName::Working => native_pet_working_shadow_weight(playback.frame_phase),
-        NativePetAnimationName::Sad => native_pet_sad_shadow_weight(playback.frame_phase),
-        NativePetAnimationName::Reassure => native_pet_reassure_shadow_weight(playback.frame_phase),
-        NativePetAnimationName::Explain => native_pet_explain_shadow_weight(playback.frame_phase),
-        NativePetAnimationName::Curious => native_pet_curious_shadow_weight(playback.frame_phase),
-        NativePetAnimationName::TripFallLeft | NativePetAnimationName::TripFallRight => {
-            native_pet_trip_fall_shadow_weight(playback.frame_phase)
+        NativePetRenderProfileKind::Approval => native_pet_approval_shadow_weight(frame_phase),
+        NativePetRenderProfileKind::Thinking => native_pet_thinking_shadow_weight(frame_phase),
+        NativePetRenderProfileKind::Working => native_pet_working_shadow_weight(frame_phase),
+        NativePetRenderProfileKind::Sad => native_pet_sad_shadow_weight(frame_phase),
+        NativePetRenderProfileKind::Reassure => native_pet_reassure_shadow_weight(frame_phase),
+        NativePetRenderProfileKind::Cast => native_pet_cast_shadow_weight(frame_phase),
+        NativePetRenderProfileKind::Explain => native_pet_explain_shadow_weight(frame_phase),
+        NativePetRenderProfileKind::Curious => native_pet_curious_shadow_weight(frame_phase),
+        NativePetRenderProfileKind::TripFall => native_pet_trip_fall_shadow_weight(frame_phase),
+        NativePetRenderProfileKind::Fallen => native_pet_fallen_shadow_weight(),
+        NativePetRenderProfileKind::FallenGetUp => {
+            native_pet_fallen_get_up_shadow_weight(frame_phase)
         }
-        NativePetAnimationName::FallenIdleLeft | NativePetAnimationName::FallenIdleRight => {
-            native_pet_fallen_shadow_weight()
+        NativePetRenderProfileKind::StumbleRecover => {
+            native_pet_stumble_recover_shadow_weight(frame_phase)
         }
-        NativePetAnimationName::FallenGetUpLeft | NativePetAnimationName::FallenGetUpRight => {
-            native_pet_fallen_get_up_shadow_weight(playback.frame_phase)
-        }
-        NativePetAnimationName::StumbleRecoverLeft
-        | NativePetAnimationName::StumbleRecoverRight => {
-            native_pet_stumble_recover_shadow_weight(playback.frame_phase)
-        }
-        NativePetAnimationName::Celebrate => match playback.frame_phase % 8 {
+        NativePetRenderProfileKind::Celebrate => match frame_phase % 8 {
             1 | 2 => (0.56, 0.19),
             4 | 5 => (0.42, 0.1),
             _ => (0.5, 0.16),
         },
-        NativePetAnimationName::Hover => native_pet_hover_shadow_weight(playback.frame_phase),
-        NativePetAnimationName::Tap => native_pet_tap_shadow_weight(playback.frame_phase),
-        NativePetAnimationName::Wake => match playback.frame_phase % 4 {
+        NativePetRenderProfileKind::Dance => (0.5, 0.16),
+        NativePetRenderProfileKind::Hover => native_pet_hover_shadow_weight(frame_phase),
+        NativePetRenderProfileKind::Tap => native_pet_tap_shadow_weight(frame_phase),
+        NativePetRenderProfileKind::Wake => match frame_phase % 4 {
             0 | 1 => (0.54, 0.15),
             2 => (0.45, 0.12),
             _ => (0.5, 0.16),
         },
-        NativePetAnimationName::Sleep => (0.52, 0.14),
+        NativePetRenderProfileKind::Sleep => (0.52, 0.14),
     };
     let width = (target_width as f64 * width_factor).round().max(1.0);
 
@@ -166,6 +170,16 @@ fn native_pet_reassure_shadow_weight(frame_phase: usize) -> (f64, f64) {
         1 => (0.55, 0.185),
         2 => (0.46, 0.125),
         3 => (0.49, 0.145),
+        _ => (0.5, 0.155),
+    }
+}
+
+fn native_pet_cast_shadow_weight(frame_phase: usize) -> (f64, f64) {
+    match frame_phase {
+        1 | 2 => (0.43, 0.105),
+        3 => (0.46, 0.12),
+        4 | 5 => (0.5, 0.145),
+        6 => (0.49, 0.145),
         _ => (0.5, 0.155),
     }
 }

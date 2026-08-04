@@ -37,7 +37,7 @@ node <skill_dir>/scripts/lexora-buddy-pet.mjs move edge left --after celebrate
 node <skill_dir>/scripts/lexora-buddy-pet.mjs move center
 node <skill_dir>/scripts/lexora-buddy-pet.mjs move home --after sleep
 
-node <skill_dir>/scripts/lexora-buddy-pet.mjs perform center-cast-return-sleep --animation celebrate --duration-ms 2000
+node <skill_dir>/scripts/lexora-buddy-pet.mjs perform center-cast-return-sleep --animation cast --duration-ms 2000
 ```
 
 For custom multi-step movement, use `sequence --json` or `sequence --file`; do not hand-write socket payloads.

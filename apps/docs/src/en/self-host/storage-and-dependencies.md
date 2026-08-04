@@ -14,10 +14,9 @@ Redis supports runtime behavior, including:
 
 - Agent commands and run events.
 - Multi-replica locks.
-- Collaboration permission invalidation messages.
 - Background task coordination.
 
-Redis is not the final business data source, but Redis outages affect AI runs, collaboration notifications, and some background tasks.
+Redis is not the final business data source, but Redis outages affect AI runs and some background tasks.
 
 ## Object Storage
 
@@ -26,8 +25,7 @@ Images and attachments are stored in S3-compatible object storage. Document cont
 ## Service Dependencies
 
 - `api` depends on PostgreSQL, Redis, and object storage.
-- `collab` depends on API, PostgreSQL, and Redis.
 - `agent` depends on API and Redis, and uses the database as checkpointer storage.
-- `web` depends on API and collab.
+- `web` depends on API.
 
 If a service fails to start, check its dependencies first.

@@ -19,14 +19,12 @@ const WorkspaceContainer = () => import('@/layouts/containers/workspace-containe
 const AdminView = () => import('@/views/admin')
 const AuthCallbackView = () => import('@/views/auth/pages/callback')
 const ChangePasswordView = () => import('@/views/auth/pages/change-password')
-const CollaborationResolverPageView = () => import('@/views/collaboration')
 const LoginView = () => import('@/views/auth/pages/login')
 const PasswordRegisterVerifyView = () => import('@/views/auth/pages/register-verify')
 const PasswordRegisterRequestView = () => import('@/views/auth/pages/register')
 const ChatView = () => import('@/views/chat/index.vue')
 // const CodeView = () => import('@/views/code/index.vue') // TODO
 const DocsView = () => import('@/views/docs/index.vue')
-const DocsCollaborationsPageView = () => import('@/views/docs/pages/collaborations')
 const DocsDocumentSurfaceView = () => import('@/views/docs/pages/document-surface')
 const DocsPublicationSettingsPageView = () => import('@/views/docs/pages/publication-settings')
 const DocsTrashPageView = () => import('@/views/docs/pages/trash')
@@ -86,11 +84,6 @@ const workspaceRouteChildren = [
     component: ChatView,
   },
   {
-    path: 'r/:code',
-    name: 'collaboration-resolver',
-    component: CollaborationResolverPageView,
-  },
-  {
     path: 'docs',
     name: 'docs-nav',
     component: DocsView,
@@ -101,11 +94,6 @@ const workspaceRouteChildren = [
       navActiveIcon: 'docs-active',
     },
     children: [
-      {
-        path: 'collaborations',
-        name: 'docs-collaborations',
-        component: DocsCollaborationsPageView,
-      },
       {
         path: 'trash',
         name: 'docs-trash',

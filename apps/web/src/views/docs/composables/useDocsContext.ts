@@ -14,6 +14,25 @@ export interface NavigateToDocumentOptions {
   focusTitle?: boolean
 }
 
+type DocumentNavigationConfirmationHandler = () => Promise<boolean>
+
+export function createDocumentNavigationConfirmation() {
+  let handler: DocumentNavigationConfirmationHandler | null = null
+
+  async function confirm() {
+    return handler ? await handler() : true
+  }
+
+  function setHandler(nextHandler: DocumentNavigationConfirmationHandler) {
+    handler = nextHandler
+  }
+
+  return {
+    confirm,
+    setHandler,
+  }
+}
+
 export const useDocsContext = createSharedComposable(() => {
   const route = useRoute()
   const router = useRouter()
@@ -28,9 +47,10 @@ export const useDocsContext = createSharedComposable(() => {
   const isSelectingInitialDocument = shallowRef(false)
   const pendingHistoryDocumentId = shallowRef<string | null>(null)
   const pendingTitleFocusDocumentId = shallowRef<string | null>(null)
+  const navigationConfirmation = createDocumentNavigationConfirmation()
 
   async function confirmNavigation() {
-    return true
+    return await navigationConfirmation.confirm()
   }
 
   async function navigateToDocument(
@@ -84,5 +104,6 @@ export const useDocsContext = createSharedComposable(() => {
     pendingTitleFocusDocumentId,
     routeKey,
     routeName,
+    setNavigationConfirmationHandler: navigationConfirmation.setHandler,
   }
 })

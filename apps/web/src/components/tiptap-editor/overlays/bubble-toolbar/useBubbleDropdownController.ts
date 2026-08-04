@@ -15,9 +15,7 @@ export function useBubbleDropdownController<TState>(
   options: BubbleDropdownControllerOptions<TState>,
 ) {
   const { editor, projectState } = options
-  const editorSnapshot = useEditorSnapshot(editor, {
-    ignoreCollaborationOrigin: true,
-  })
+  const editorSnapshot = useEditorSnapshot(editor)
   const actionRegistry = createMenuActionRegistry({ editor })
   const visible = shallowRef(false)
   const state = computed(() => {

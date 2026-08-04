@@ -30,12 +30,10 @@ const pageWidthOptions = computed<PageWidthOptionView[]>(() => DOCUMENT_PAGE_WID
 
 const {
   currentPageWidthMode,
-  canShowCollaborationButton,
   canShowPublicationButton,
   handleMenuCommand,
   handlePageWidthOptionClick,
   isDocsChatPanelOpen,
-  openCollaborationDialog,
   openPublicationDialog,
   toggleDocsChatPanel,
 } = useDocumentHeaderActions()
@@ -59,20 +57,6 @@ const {
         <ChatAssistantAvatar />
       </ElButton>
     </ElTooltip>
-
-    <ElButton
-      v-if="canShowCollaborationButton"
-      text
-      class="document-header-actions__share-button h-7 min-h-7 rounded-lg border px-2 font-normal"
-      :title="t('docs.common.collaboration')"
-      @click="openCollaborationDialog"
-    >
-      <span class="inline-flex items-center gap-1 text-xs">
-        <SvgIcon category="ui" icon="lock" />
-        <span class="text-xs leading-none">{{ t('docs.common.collaboration') }}</span>
-        <SvgIcon category="ui" icon="chevron-down" class="text-[10px] text-secondary" />
-      </span>
-    </ElButton>
 
     <ElButton
       v-if="canShowPublicationButton"

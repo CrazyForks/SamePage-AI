@@ -126,10 +126,9 @@ export class AgentSkillsService {
   }
 
   async listDefaultAgentSkills(ownerUserId: string): Promise<ListAgentSkillsResponse> {
-    const [profile, configuredCredentialSkillKeys, cardCredentialPayloadBySkillKey] = await Promise.all([
+    const [profile, configuredCredentialSkillKeys] = await Promise.all([
       this.profiles.ensureDefaultAgentProfile({ ownerUserId }),
       this.listConfiguredCredentialSkillKeys(ownerUserId),
-      this.listSkillCardCredentialPayloads(ownerUserId),
     ])
     const config = AgentProfileConfigSchema.parse(profile.currentConfig)
     const bindingByKey = new Map(config.skillBindings.map(binding => [binding.key, binding]))
@@ -138,7 +137,6 @@ export class AgentSkillsService {
         definition,
         bindingByKey.get(definition.key),
         configuredCredentialSkillKeys,
-        cardCredentialPayloadBySkillKey,
       ),
     )
 
@@ -528,26 +526,6 @@ export class AgentSkillsService {
     return new Set(credentials.map(credential => credential.skillKey))
   }
 
-  private async listSkillCardCredentialPayloads(ownerUserId: string): Promise<ReadonlyMap<string, Record<string, unknown>>> {
-    const credentials = await this.prisma.agentSkillCredential.findMany({
-      where: {
-        ownerUserId,
-        skillKey: {
-          in: [AGENT_AMAP_MCP_SKILL_KEY],
-        },
-      },
-      select: {
-        skillKey: true,
-        credentialEncrypted: true,
-      },
-    })
-
-    return new Map(credentials.map(credential => [
-      credential.skillKey,
-      this.decryptCredentialPayload(credential.credentialEncrypted),
-    ]))
-  }
-
   private encryptCredentialPayload(payload: Record<string, unknown>): string {
     return encryptAes256Gcm(JSON.stringify(payload), this.encryptionKey)
   }
@@ -605,7 +583,6 @@ function toSkillCard(
   definition: (typeof AGENT_FIRST_PARTY_SKILL_DEFINITIONS)[number],
   binding: AgentSkillBinding | undefined,
   configuredCredentialSkillKeys: ReadonlySet<string>,
-  cardCredentialPayloadBySkillKey: ReadonlyMap<string, Record<string, unknown>>,
 ): AgentSkillCard {
   const installed = definition.defaultInstalled || Boolean(binding)
   const enabled = installed
@@ -640,7 +617,6 @@ function toSkillCard(
       definition.key,
       normalizeSkillBindingConfig(definition.key, binding?.config ?? getDefaultSkillBindingConfig(definition.key)),
       configuredCredentialSkillKeys,
-      cardCredentialPayloadBySkillKey,
     ),
   }
 }
@@ -917,15 +893,10 @@ function toSkillCardConfig(
   skillKey: string,
   config: AgentSkillBindingConfig,
   configuredCredentialSkillKeys: ReadonlySet<string>,
-  cardCredentialPayloadBySkillKey: ReadonlyMap<string, Record<string, unknown>>,
 ): AgentSkillBindingConfig {
   if (skillKey === AGENT_AMAP_MCP_SKILL_KEY) {
-    const credentialResult = AgentAmapMcpSkillCredentialConfigSchema.safeParse(cardCredentialPayloadBySkillKey.get(skillKey) ?? {})
-    const apiKey = credentialResult.success ? credentialResult.data.apiKey?.trim() ?? '' : ''
-
     return AgentAmapMcpSkillCardConfigSchema.parse({
       apiKeyConfigured: configuredCredentialSkillKeys.has(skillKey),
-      apiKey,
     })
   }
 

@@ -15,15 +15,15 @@ Check:
 - The `agent` service is healthy.
 - Redis is available.
 
-## What if document collaboration cannot connect?
+## What if document changes are not saved?
 
 Check:
 
-- The `collab` service is healthy.
-- WebSocket traffic is correctly forwarded by the reverse proxy.
+- The `api` service is healthy.
+- Requests to `/api/documents/*` are correctly forwarded by the reverse proxy.
 - The current user has edit access.
 - The document is not in trash.
-- `API_INTERNAL_URL` points to the API origin.
+- The page does not report a revision conflict. If it does, preserve local content before refreshing the latest server version.
 
 ## What if images or attachments cannot load?
 

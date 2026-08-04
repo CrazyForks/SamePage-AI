@@ -15,10 +15,6 @@ export const DEFAULT_RBAC_SEED = {
       description: '删除当前用户账号',
     },
     {
-      code: PERMISSIONS.USER_LOOKUP_BY_CODE,
-      description: '按协作 ID 精确查找用户',
-    },
-    {
       code: PERMISSIONS.WORKSPACE_READ_SELF,
       description: '读取当前用户工作区信息',
     },
@@ -91,7 +87,6 @@ export const DEFAULT_RBAC_SEED = {
         PERMISSIONS.USER_READ_SELF,
         PERMISSIONS.USER_UPDATE_SELF,
         PERMISSIONS.USER_DELETE_SELF,
-        PERMISSIONS.USER_LOOKUP_BY_CODE,
         PERMISSIONS.WORKSPACE_READ_SELF,
         PERMISSIONS.WORKSPACE_CREATE_SELF,
         PERMISSIONS.WORKSPACE_UPDATE_SELF,
@@ -103,7 +98,6 @@ export const DEFAULT_RBAC_SEED = {
       permissions: [
         PERMISSIONS.USER_READ_SELF,
         PERMISSIONS.USER_UPDATE_SELF,
-        PERMISSIONS.USER_LOOKUP_BY_CODE,
         PERMISSIONS.WORKSPACE_READ_SELF,
         PERMISSIONS.WORKSPACE_CREATE_SELF,
         PERMISSIONS.WORKSPACE_UPDATE_SELF,

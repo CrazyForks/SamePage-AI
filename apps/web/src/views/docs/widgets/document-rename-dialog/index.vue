@@ -2,7 +2,8 @@
 import type { FormInstance, FormRules } from 'element-plus'
 import type { RenameFormModel } from './typing'
 import { DOCUMENT_TITLE_MAX_LENGTH } from '@haohaoxue/lexora-contracts/document/constants'
-import { computed, nextTick, reactive, useTemplateRef, watch } from 'vue'
+import { createDocumentTitleContent } from '@haohaoxue/lexora-shared/document'
+import { computed, nextTick, reactive, shallowRef, useTemplateRef, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ElMessage } from '@/utils/element-plus'
 import { useActiveDocument } from '../../composables/useActiveDocument'
@@ -13,6 +14,7 @@ const activeDocument = useActiveDocument()
 const { t } = useI18n()
 const formRef = useTemplateRef<FormInstance>('formRef')
 const titleInputRef = useTemplateRef<{ focus: () => void }>('titleInputRef')
+const isSavingActiveDocumentTitle = shallowRef(false)
 
 const form = reactive<RenameFormModel>({
   title: '',
@@ -39,7 +41,7 @@ const rules = computed<FormRules<RenameFormModel>>(() => ({
 }))
 
 const isOpen = computed(() => tree.isRenameDialogOpen.value)
-const isSubmitting = computed(() => tree.isRenaming.value)
+const isSubmitting = computed(() => tree.isRenaming.value || isSavingActiveDocumentTitle.value)
 
 watch(
   () => tree.renameDialogTarget.value,
@@ -74,17 +76,40 @@ async function confirmRename() {
   }
 
   try {
+    const target = tree.renameDialogTarget.value
+    const normalizedTitle = form.title.trim()
+
+    if (target && target.documentId === activeDocument.currentDocument.value?.id) {
+      if (normalizedTitle === target.documentTitle) {
+        tree.closeRenameDialog()
+        return
+      }
+
+      isSavingActiveDocumentTitle.value = true
+      activeDocument.updateDocumentTitle(createDocumentTitleContent(normalizedTitle))
+
+      if (!await activeDocument.confirmNavigation()) {
+        return
+      }
+
+      tree.closeRenameDialog()
+      ElMessage.success(t('docs.renameDialog.success'))
+      return
+    }
+
     const current = await tree.confirmRenameDocument(form.title)
 
     if (!current) {
       return
     }
 
-    activeDocument.applyDocumentTitleChanged(current)
     ElMessage.success(t('docs.renameDialog.success'))
   }
   catch (error) {
     ElMessage.error(error instanceof Error ? error.message : t('docs.renameDialog.failed'))
+  }
+  finally {
+    isSavingActiveDocumentTitle.value = false
   }
 }
 </script>

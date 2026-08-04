@@ -13,7 +13,6 @@ const zhGuideSidebar = [
     items: [
       { text: 'AI 对话', link: '/guide/ai-chat' },
       { text: '文档页面', link: '/guide/documents' },
-      { text: '文档协作', link: '/guide/collaboration' },
       { text: '公开发布', link: '/guide/publication' },
       { text: '个人设置与模型', link: '/guide/settings-and-models' },
     ],
@@ -56,7 +55,6 @@ const enGuideSidebar = [
     items: [
       { text: 'AI Chat', link: '/en/guide/ai-chat' },
       { text: 'Document Pages', link: '/en/guide/documents' },
-      { text: 'Document Collaboration', link: '/en/guide/collaboration' },
       { text: 'Public Publishing', link: '/en/guide/publication' },
       { text: 'Settings and Models', link: '/en/guide/settings-and-models' },
     ],
@@ -88,7 +86,7 @@ const enSelfHostSidebar = [
 
 export default defineConfig({
   title: 'Lexora',
-  description: '文档、协作与 AI 汇入同一个工作台',
+  description: '文档与 AI 汇入一个专注的个人工作台',
   cleanUrls: true,
   outDir: '../dist',
   cacheDir: '../.vitepress/cache',
@@ -115,7 +113,7 @@ export default defineConfig({
     en: {
       label: 'English',
       lang: 'en-US',
-      description: 'Documents, collaboration, and AI in one living workspace',
+      description: 'Documents and AI in a focused personal workspace',
       themeConfig: {
         nav: [
           { text: 'Home', link: '/en/' },

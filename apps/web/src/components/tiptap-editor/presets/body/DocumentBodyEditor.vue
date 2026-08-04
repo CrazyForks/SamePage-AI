@@ -73,7 +73,6 @@ const {
     <TiptapEditor
       class="document-body-editor__surface"
       :content="props.content"
-      :content-source="props.collaboration ? 'collaboration' : 'props'"
       :initial-extensions="bodyEditorExtensions"
       :editable="props.editable"
       :handle-key-down="handleBodyEditorKeyDown"

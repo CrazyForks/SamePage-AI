@@ -1,6 +1,5 @@
 enum NotificationSourceKind {
   PLATFORM
-  DOCUMENT_COLLABORATION_USER_INVITE
 }
 
 enum PlatformNotificationStatus {
@@ -14,21 +13,21 @@ enum PlatformNotificationAssetStatus {
 }
 
 model PlatformNotification {
-  id            String                     @id @default(uuid())
+  id            String                      @id @default(uuid())
   title         String
   content       Json
-  summary       String                     @default("")
-  status        PlatformNotificationStatus @default(DRAFT)
+  summary       String                      @default("")
+  status        PlatformNotificationStatus  @default(DRAFT)
   publishedAt   DateTime?
-  createdAt     DateTime                   @default(now())
+  createdAt     DateTime                    @default(now())
   createdBy     String?
-  createdByUser User?                      @relation("PlatformNotificationCreator", fields: [createdBy], references: [id], onDelete: SetNull)
-  updatedAt     DateTime                   @updatedAt
+  createdByUser User?                       @relation("PlatformNotificationCreator", fields: [createdBy], references: [id], onDelete: SetNull)
+  updatedAt     DateTime                    @updatedAt
   updatedBy     String?
-  updatedByUser User?                      @relation("PlatformNotificationUpdater", fields: [updatedBy], references: [id], onDelete: SetNull)
+  updatedByUser User?                       @relation("PlatformNotificationUpdater", fields: [updatedBy], references: [id], onDelete: SetNull)
   deletedAt     DateTime?
   deletedBy     String?
-  deletedByUser User?                      @relation("PlatformNotificationDeleter", fields: [deletedBy], references: [id], onDelete: SetNull)
+  deletedByUser User?                       @relation("PlatformNotificationDeleter", fields: [deletedBy], references: [id], onDelete: SetNull)
   assets        PlatformNotificationAsset[] @relation("PlatformNotificationAssets")
 
   @@index([status, publishedAt])
@@ -39,25 +38,25 @@ model PlatformNotification {
 }
 
 model PlatformNotificationAsset {
-  id             String                          @id @default(uuid())
-  notificationId String?
-  notification   PlatformNotification?           @relation("PlatformNotificationAssets", fields: [notificationId], references: [id], onDelete: SetNull)
-  status         PlatformNotificationAssetStatus @default(READY)
-  bucket         String
-  objectKey      String
-  mimeType       String
-  size           Int
-  sha256         String
+  id               String                          @id @default(uuid())
+  notificationId   String?
+  notification     PlatformNotification?           @relation("PlatformNotificationAssets", fields: [notificationId], references: [id], onDelete: SetNull)
+  status           PlatformNotificationAssetStatus @default(READY)
+  bucket           String
+  objectKey        String
+  mimeType         String
+  size             Int
+  sha256           String
   originalFileName String
-  width          Int?
-  height         Int?
-  createdAt      DateTime                        @default(now())
-  createdBy      String?
-  createdByUser  User?                           @relation("PlatformNotificationAssetCreator", fields: [createdBy], references: [id], onDelete: SetNull)
-  updatedAt      DateTime                        @updatedAt
-  deletedAt      DateTime?
-  deletedBy      String?
-  deletedByUser  User?                           @relation("PlatformNotificationAssetDeleter", fields: [deletedBy], references: [id], onDelete: SetNull)
+  width            Int?
+  height           Int?
+  createdAt        DateTime                        @default(now())
+  createdBy        String?
+  createdByUser    User?                           @relation("PlatformNotificationAssetCreator", fields: [createdBy], references: [id], onDelete: SetNull)
+  updatedAt        DateTime                        @updatedAt
+  deletedAt        DateTime?
+  deletedBy        String?
+  deletedByUser    User?                           @relation("PlatformNotificationAssetDeleter", fields: [deletedBy], references: [id], onDelete: SetNull)
 
   @@unique([bucket, objectKey])
   @@index([notificationId])

@@ -11,7 +11,6 @@ import type {
   UpdateCurrentUserAvatarResponse,
   UpdateCurrentUserProfileRequest,
   UpdateUserPreferencesRequest,
-  UserCollabIdentity,
   UserSettings,
   UserSettingsPreferences,
 } from './typing'
@@ -30,16 +29,6 @@ export function getCurrentUserSettings(): Promise<UserSettings> {
   return axios.request({
     method: 'get',
     url: '/users/me/settings',
-  })
-}
-
-export function findUserByCode(code: string): Promise<UserCollabIdentity> {
-  return axios.request({
-    method: 'get',
-    url: '/users/lookup/by-code',
-    params: {
-      code,
-    },
   })
 }
 

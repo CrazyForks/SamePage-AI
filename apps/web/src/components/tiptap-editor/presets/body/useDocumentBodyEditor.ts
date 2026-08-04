@@ -46,7 +46,6 @@ export function useDocumentBodyEditor(options: {
     uploadImage: handleUploadImage,
     uploadFile: handleUploadFile,
     resolveImageSrc: resolveDocumentImageSrc,
-    collaboration: options.props.collaboration,
     aiDraftPreview: {
       onAccept: candidateId => options.onAcceptAiDraftPreview(candidateId),
       onReject: candidateId => options.onRejectAiDraftPreview(candidateId),

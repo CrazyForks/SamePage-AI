@@ -2,11 +2,8 @@
 import type { NotificationListFilter } from '@haohaoxue/lexora-contracts'
 import type { SessionNotificationPanelProps } from '../typing'
 import type { TiptapEditorResolveImageSrc } from '@/components/tiptap-editor/content/typing'
-import type {
-  SessionNotificationInvitationItem,
-  SessionNotificationItem,
-} from '@/layouts/components/session-notification-bell/useSessionNotificationBell'
-import { NOTIFICATION_LIST_FILTER, NOTIFICATION_SOURCE_KIND } from '@haohaoxue/lexora-contracts/notification'
+import type { SessionNotificationItem } from '@/layouts/components/session-notification-bell/useSessionNotificationBell'
+import { NOTIFICATION_LIST_FILTER } from '@haohaoxue/lexora-contracts/notification'
 import { computed, shallowRef, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { resolvePublishedNotificationAssets } from '@/apis/notification'
@@ -18,9 +15,6 @@ const emits = defineEmits<{
   filterChange: [filter: NotificationListFilter]
   markAllRead: []
   loadMore: []
-  view: [invitation: SessionNotificationInvitationItem]
-  accept: [invitation: SessionNotificationInvitationItem]
-  decline: [invitation: SessionNotificationInvitationItem]
 }>()
 const { t } = useI18n({ useScope: 'global' })
 
@@ -98,27 +92,11 @@ function requestLoadMore() {
   emits('loadMore')
 }
 
-function isInvite(item: SessionNotificationItem) {
-  return item.kind === NOTIFICATION_SOURCE_KIND.DOCUMENT_COLLABORATION_USER_INVITE && item.documentInviteItem
-}
-
-function isPlatformNotification(item: SessionNotificationItem) {
-  return item.kind === NOTIFICATION_SOURCE_KIND.PLATFORM
-}
-
 function openPlatformNotification(item: SessionNotificationItem) {
-  if (!isPlatformNotification(item)) {
-    return
-  }
-
   selectedPlatformNotification.value = item
 }
 
 function handleNotificationItemKeydown(event: KeyboardEvent, item: SessionNotificationItem) {
-  if (!isPlatformNotification(item)) {
-    return
-  }
-
   if (event.key !== 'Enter' && event.key !== ' ') {
     return
   }
@@ -242,14 +220,13 @@ const resolveNotificationImageSrc: TiptapEditorResolveImageSrc = async (assetId)
         <article
           v-for="{ item, index, top } in virtualItems"
           :key="item.id"
-          class="session-notification-panel__item absolute left-0 right-0 flex gap-3 border-b border-base bg-surface p-3"
+          class="session-notification-panel__item absolute left-0 right-0 flex gap-3 border-b border-base bg-surface p-3 is-clickable"
           :class="{
             'is-unread': item.isUnread,
             'is-last': index === props.notificationItems.length - 1,
-            'is-clickable': isPlatformNotification(item),
           }"
-          :role="isPlatformNotification(item) ? 'button' : undefined"
-          :tabindex="isPlatformNotification(item) ? 0 : undefined"
+          role="button"
+          tabindex="0"
           :style="{ height: `${ROW_HEIGHT}px`, transform: `translateY(${top}px)` }"
           @click="openPlatformNotification(item)"
           @keydown="handleNotificationItemKeydown($event, item)"
@@ -280,7 +257,7 @@ const resolveNotificationImageSrc: TiptapEditorResolveImageSrc = async (assetId)
               {{ item.contentText }}
             </p>
 
-            <div v-if="isPlatformNotification(item)" class="mt-2 flex justify-end">
+            <div class="mt-2 flex justify-end">
               <ElButton
                 text
                 size="small"
@@ -291,35 +268,6 @@ const resolveNotificationImageSrc: TiptapEditorResolveImageSrc = async (assetId)
                   {{ t('sessionMenu.notifications.detail') }}
                   <SvgIcon category="ui" icon="chevron-right" size="13px" />
                 </span>
-              </ElButton>
-            </div>
-
-            <div v-if="isInvite(item) && item.documentInviteItem" class="mt-2 flex items-center justify-end">
-              <ElButton
-                size="small"
-                plain
-                :disabled="Boolean(props.actingInvitationId)"
-                @click.stop="emits('view', item.documentInviteItem)"
-              >
-                {{ t('sessionMenu.notifications.view') }}
-              </ElButton>
-              <ElButton
-                size="small"
-                plain
-                :disabled="Boolean(props.actingInvitationId)"
-                :loading="props.actingInvitationId === item.documentInviteItem.id && props.actingInvitationAction === 'decline'"
-                @click.stop="emits('decline', item.documentInviteItem)"
-              >
-                {{ t('sessionMenu.notifications.decline') }}
-              </ElButton>
-              <ElButton
-                size="small"
-                type="primary"
-                :disabled="Boolean(props.actingInvitationId)"
-                :loading="props.actingInvitationId === item.documentInviteItem.id && props.actingInvitationAction === 'accept'"
-                @click.stop="emits('accept', item.documentInviteItem)"
-              >
-                {{ t('sessionMenu.notifications.accept') }}
               </ElButton>
             </div>
           </div>

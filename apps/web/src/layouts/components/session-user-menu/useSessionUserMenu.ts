@@ -38,16 +38,10 @@ export function useSessionUserMenu(options: UseSessionUserMenuOptions) {
   const activeSubmenu = shallowRef<SessionMenuPanel>(null)
   const { currentUser: sessionUser, isLoggingOut, logout } = useAuthSession()
   const {
-    acceptInvitation,
-    actingInvitationAction,
-    actingInvitationId,
-    closeInvitationDetail,
-    declineInvitation,
     activeFilter,
     hasLoadedList,
     hasMoreNotifications,
     hasUnreadNotifications,
-    isDetailDialogOpen,
     isLoading,
     isLoadingMore,
     isMarkingAllRead,
@@ -56,10 +50,8 @@ export function useSessionUserMenu(options: UseSessionUserMenuOptions) {
     markAllUnreadNotificationsRead,
     notificationItems,
     refreshNotifications: refreshNotificationState,
-    selectedInvitation,
     setNotificationFilter,
     unreadNotificationCount,
-    viewInvitation,
   } = useSessionNotificationBell()
   const lastKnownUser = shallowRef(sessionUser.value)
   const {
@@ -149,20 +141,12 @@ export function useSessionUserMenu(options: UseSessionUserMenuOptions) {
     hasMoreNotifications,
     hasUnreadNotifications,
     unreadNotificationCount,
-    actingInvitationId,
-    actingInvitationAction,
-    selectedInvitation,
-    isDetailDialogOpen,
     copiedUserCode,
     toggleNotificationPanel,
     handleCopyUserCode,
-    handleViewInvitation,
-    handleAcceptInvitation,
-    handleDeclineInvitation,
     handleNotificationFilterChange,
     handleLoadMoreNotifications,
     handleMarkAllNotificationsRead,
-    closeInvitationDetail,
     handleAppearanceSelect,
     switchContext,
     handleLogout,
@@ -238,30 +222,17 @@ export function useSessionUserMenu(options: UseSessionUserMenuOptions) {
 
   async function handleCopyUserCode() {
     if (!isClipboardSupported.value) {
-      ElMessage.error(t('sessionMenu.collaborationCode.copyUnsupported'))
+      ElMessage.error(t('sessionMenu.accountCode.copyUnsupported'))
       return
     }
 
     try {
       await copy(currentUser.value.userCode)
-      ElMessage.success(t('sessionMenu.collaborationCode.copied'))
+      ElMessage.success(t('sessionMenu.accountCode.copied'))
     }
     catch {
-      ElMessage.error(t('sessionMenu.collaborationCode.copyFailed'))
+      ElMessage.error(t('sessionMenu.accountCode.copyFailed'))
     }
-  }
-
-  function handleViewInvitation(...args: Parameters<typeof viewInvitation>) {
-    viewInvitation(...args)
-  }
-
-  async function handleAcceptInvitation(...args: Parameters<typeof acceptInvitation>) {
-    await acceptInvitation(...args)
-    closeMenu()
-  }
-
-  async function handleDeclineInvitation(...args: Parameters<typeof declineInvitation>) {
-    await declineInvitation(...args)
   }
 
   function getLogoutIconName() {

@@ -1,10 +1,10 @@
 # Document Pages
 
-Document pages are the core collaboration object in Lexora. Pages are organized as a tree and edited with a rich text editor.
+Document pages are the core knowledge object in Lexora. Pages are organized as a tree and edited with a rich text editor.
 
 ## Page Tree
 
-Documents are stored in the current personal workspace. A page can have child pages; top-level pages have no parent. The document tree is grouped by private and collaborative entries, so collaborators do not see unauthorized ancestors or sibling branches.
+Documents are stored in the current personal workspace by default. A page can have child pages; top-level pages have no parent. Existing team workspaces can remain as separate document containers.
 
 ## Rich Text Editing
 
@@ -12,13 +12,13 @@ The editor supports common block content, including paragraphs, headings, lists,
 
 ## History and Restore
 
-Documents maintain a current read projection and historical versions. Historical versions are used for reading, auditing, and restore. Real-time collaboration state remains owned by the editing runtime.
+The editor autosaves title and body as one consistent current projection. Saves use a revision to prevent stale pages from silently overwriting newer content and an idempotency key to make retries safe.
 
-Restoring a historical version creates a new editing runtime baseline instead of overwriting an active collaborative document in place.
+Historical versions support reading, auditing, and restore. Restoring creates a new current projection and a restore audit snapshot.
 
 ## Trash
 
-Deleted documents move into trash. When a document is trashed, related collaboration and publication access is withdrawn so external entries cannot keep reading deleted content.
+Deleted documents move into trash. When a document is trashed, publication access is withdrawn so external entries cannot keep reading deleted content.
 
 ## Document AI
 

@@ -1,3 +1,4 @@
+import type { TiptapJsonContent } from '../tiptap/core'
 import type {
   DOCUMENT_PANE_STATE,
   DOCUMENT_SAVE_STATE,
@@ -6,7 +7,7 @@ import { z } from 'zod'
 import { AuditUserSummarySchema } from '../identity'
 import { TiptapJsonContentPayloadSchema, TiptapSchemaVersionSchema } from '../tiptap/core'
 import { WorkspaceTypeSchema } from '../workspace'
-import { DocumentCollaborationAccessSchema } from './collaboration'
+import { DocumentAccessSchema } from './access'
 import {
   DOCUMENT_CHAT_SEARCH_LIMIT,
   DOCUMENT_CHAT_SEARCH_QUERY_MAX_LENGTH,
@@ -90,6 +91,11 @@ export const DocumentTreeGroupSchema = z.object({
 
 export const DocumentRevisionSchema = z.number().int().min(0)
 
+export const DocumentTitleContentSchema: z.ZodType<TiptapJsonContent> = z.array(z.object({
+  type: z.literal('text'),
+  text: z.string().max(DOCUMENT_TITLE_MAX_LENGTH),
+}).strict()).max(1)
+
 export const DocumentVersionSnapshotSourceSchema = z.enum(DOCUMENT_VERSION_SNAPSHOT_SOURCE_VALUES)
 
 export const DocumentAssetKindSchema = z.enum(['image', 'file'])
@@ -109,19 +115,15 @@ export const DocumentRecordSchema = DocumentBaseSchema.omit({
   order: z.number().int(),
   status: DocumentStatusSchema,
   pageWidthMode: DocumentPageWidthModeSchema,
-  access: DocumentCollaborationAccessSchema,
+  access: DocumentAccessSchema,
 }).strict()
 
 export const DocumentCurrentProjectionSchema = z.object({
   id: z.string(),
   documentId: z.string(),
   projectionRevision: DocumentRevisionSchema,
-  runtimeEpoch: z.number().int().min(1),
-  projectedUpdateSeq: z.number().int().min(0),
-  checkpointSeq: z.number().int().min(0),
-  checkpointUpdateSeq: z.number().int().min(0),
   schemaVersion: TiptapSchemaVersionSchema,
-  title: TiptapJsonContentPayloadSchema,
+  title: DocumentTitleContentSchema,
   body: TiptapJsonContentPayloadSchema,
   createdAt: z.string(),
   updatedAt: z.string(),
@@ -133,12 +135,8 @@ export const DocumentVersionSnapshotSchema = z.object({
   version: DocumentRevisionSchema,
   basedOnProjectionId: z.string().nullable(),
   basedOnProjectionRevision: DocumentRevisionSchema,
-  runtimeEpoch: z.number().int().min(1),
-  projectedUpdateSeq: z.number().int().min(0),
-  checkpointSeq: z.number().int().min(0),
-  checkpointUpdateSeq: z.number().int().min(0),
   schemaVersion: TiptapSchemaVersionSchema,
-  title: TiptapJsonContentPayloadSchema,
+  title: DocumentTitleContentSchema,
   body: TiptapJsonContentPayloadSchema,
   source: DocumentVersionSnapshotSourceSchema,
   restoredFromVersionSnapshotId: z.string().nullable(),
@@ -156,7 +154,6 @@ export const DocumentCurrentSchema = z.object({
 
 export const DocumentHistoryCurrentSchema = z.object({
   projectionRevision: DocumentRevisionSchema,
-  runtimeEpoch: z.number().int().min(1),
   updatedAt: z.string(),
   matchedVersionSnapshotId: z.string().nullable(),
   hasUnversionedChanges: z.boolean(),
@@ -276,9 +273,15 @@ export const PatchDocumentMetaSchema = z.object({
   },
 )
 
-export const PatchDocumentTitleSchema = z.object({
-  title: z.string().trim().min(1).max(DOCUMENT_TITLE_MAX_LENGTH),
+export const SaveDocumentContentSchema = z.object({
+  baseProjectionRevision: DocumentRevisionSchema,
+  idempotencyKey: z.string().uuid(),
+  schemaVersion: TiptapSchemaVersionSchema,
+  title: DocumentTitleContentSchema,
+  body: TiptapJsonContentPayloadSchema,
 }).strict()
+
+export const SaveDocumentContentResponseSchema = DocumentCurrentSchema
 
 export const PatchDocumentLayoutSchema = z.object({
   pageWidthMode: DocumentPageWidthModeSchema,
@@ -308,7 +311,7 @@ export type DocumentAssetKind = z.infer<typeof DocumentAssetKindSchema>
 export type DocumentAssetStatus = z.infer<typeof DocumentAssetStatusSchema>
 export type DocumentCollectionId = z.infer<typeof DocumentCollectionIdSchema>
 export type DocumentTreeCollectionId = z.infer<typeof DocumentTreeCollectionIdSchema>
-export type OwnedDocumentCollectionId = Exclude<DocumentTreeCollectionId, 'collaboration'>
+export type OwnedDocumentCollectionId = z.infer<typeof DocumentOwnedCollectionIdSchema>
 export type DocumentOperationJobType = z.infer<typeof DocumentOperationJobTypeSchema>
 export type DocumentOperationJobStatus = z.infer<typeof DocumentOperationJobStatusSchema>
 export type DocumentPaneState = (typeof DOCUMENT_PANE_STATE)[keyof typeof DOCUMENT_PANE_STATE]
@@ -371,7 +374,8 @@ export type CreateDocumentDuplicateOperationResponse = z.infer<typeof CreateDocu
 export type MoveDocumentTreeOperationRequest = z.infer<typeof MoveDocumentTreeOperationSchema>
 export type CreateDocumentMoveOperationResponse = z.infer<typeof CreateDocumentMoveOperationResponseSchema>
 export type PatchDocumentMetaRequest = z.infer<typeof PatchDocumentMetaSchema>
-export type PatchDocumentTitleRequest = z.infer<typeof PatchDocumentTitleSchema>
+export type SaveDocumentContentRequest = z.infer<typeof SaveDocumentContentSchema>
+export type SaveDocumentContentResponse = z.infer<typeof SaveDocumentContentResponseSchema>
 export type PatchDocumentLayoutRequest = z.infer<typeof PatchDocumentLayoutSchema>
 export type SearchReadableDocumentsQuery = z.infer<typeof SearchReadableDocumentsQuerySchema>
 export type ReadableDocumentSearchResult = z.infer<typeof ReadableDocumentSearchResultSchema>

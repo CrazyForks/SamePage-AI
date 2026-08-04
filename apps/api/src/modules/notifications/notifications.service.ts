@@ -1,6 +1,5 @@
 import type {
   CreatePlatformNotificationRequest,
-  DocumentCollaborationUserInviteNotification,
   GetPlatformNotificationsQuery,
   NotificationItem,
   NotificationListQuery,
@@ -16,9 +15,6 @@ import { Buffer } from 'node:buffer'
 import { randomUUID } from 'node:crypto'
 import {
   API_ERROR_CODE,
-  COLLABORATION_RESOLVER_ENTRY_STATUS,
-  COLLABORATION_RESOLVER_ENTRY_TYPE,
-  DOCUMENT_COLLABORATION_USER_INVITE_STATUS,
   NOTIFICATION_LIST_FILTER,
   NOTIFICATION_SOURCE_KIND,
   PLATFORM_NOTIFICATION_STATUS,
@@ -29,7 +25,6 @@ import {
   Injectable,
 } from '@nestjs/common'
 import {
-  DocumentStatus,
   NotificationSourceKind,
   PlatformNotificationStatus,
   Prisma,
@@ -42,28 +37,6 @@ import { collectNotificationImageAssetIds } from './notification-content-assets'
 const SYSTEM_NOTIFICATION_SENDER = {
   displayName: 'Lexora',
 } as const
-
-const documentCollaborationUserInviteNotificationSelect = {
-  id: true,
-  rootDocumentId: true,
-  permission: true,
-  scope: true,
-  status: true,
-  createdAt: true,
-  updatedAt: true,
-  rootDocument: {
-    select: {
-      title: true,
-    },
-  },
-  createdByUser: {
-    select: {
-      id: true,
-      displayName: true,
-      avatarUrl: true,
-    },
-  },
-} satisfies Prisma.DocumentCollaborationUserInviteSelect
 
 const platformNotificationSelect = {
   id: true,
@@ -91,10 +64,6 @@ const platformNotificationSelect = {
     },
   },
 } satisfies Prisma.PlatformNotificationSelect
-
-type PersistedDocumentCollaborationUserInviteNotification = Prisma.DocumentCollaborationUserInviteGetPayload<{
-  select: typeof documentCollaborationUserInviteNotificationSelect
-}>
 
 type PersistedPlatformNotification = Prisma.PlatformNotificationGetPayload<{
   select: typeof platformNotificationSelect
@@ -138,23 +107,8 @@ export class NotificationsService {
   ) {}
 
   async getNotificationSummary(userId: string): Promise<NotificationSummary> {
-    const [
-      pendingDocumentCollaborationUserInvites,
-      unreadCount,
-    ] = await Promise.all([
-      this.loadPendingDocumentCollaborationUserInvites(userId),
-      this.countUnreadNotifications(userId),
-    ])
-    const resolverCodeByInviteId = await this.loadResolverCodes(
-      pendingDocumentCollaborationUserInvites.map(invitation => invitation.id),
-    )
-
     return {
-      unreadCount,
-      pendingDocumentCollaborationUserInviteCount: pendingDocumentCollaborationUserInvites.length,
-      pendingDocumentCollaborationUserInvites: pendingDocumentCollaborationUserInvites.map(invitation =>
-        mapDocumentCollaborationUserInviteNotification(invitation, resolverCodeByInviteId.get(invitation.id) ?? ''),
-      ),
+      unreadCount: await this.countUnreadNotifications(userId),
     }
   }
 
@@ -167,7 +121,7 @@ export class NotificationsService {
     const [sourcePage, unreadCount] = await Promise.all([
       query.filter === NOTIFICATION_LIST_FILTER.UNREAD
         ? this.loadUnreadNotificationSourcePage(userId, limit, cursor)
-        : this.loadNotificationSourcePage(userId, limit, cursor),
+        : this.loadNotificationSourcePage(limit, cursor),
       this.countUnreadNotifications(userId),
     ])
     const readReceiptBySourceKey = query.filter === NOTIFICATION_LIST_FILTER.UNREAD
@@ -365,67 +319,18 @@ export class NotificationsService {
   }
 
   private async countUnreadNotifications(userId: string): Promise<number> {
-    const [
-      platformNotificationCount,
-      documentCollaborationUserInviteCount,
-    ] = await Promise.all([
-      this.countUnreadPlatformNotifications(userId),
-      this.countUnreadDocumentCollaborationUserInvites(userId),
-    ])
-
-    return platformNotificationCount + documentCollaborationUserInviteCount
+    return await this.countUnreadPlatformNotifications(userId)
   }
 
   private async loadNotificationSourcePage(
-    userId: string,
     limit: number,
     cursor: NotificationSourceCursor | null,
   ): Promise<NotificationSourcePage> {
     const take = limit + 1
-    const [
-      platformNotifications,
-      pendingDocumentCollaborationUserInvites,
-    ] = await Promise.all([
-      this.loadPlatformNotificationsPage(take, cursor),
-      this.loadPendingDocumentCollaborationUserInvitesPage(userId, take, cursor),
-    ])
-
-    const resolverCodeByInviteId = await this.loadResolverCodes(
-      pendingDocumentCollaborationUserInvites.map(invitation => invitation.id),
-    )
-    const sources = [
-      ...pendingDocumentCollaborationUserInvites.map(invitation =>
-        mapDocumentCollaborationUserInviteNotificationSource(
-          invitation,
-          resolverCodeByInviteId.get(invitation.id) ?? '',
-        ),
-      ),
-      ...platformNotifications.map(mapPlatformNotificationSource),
-    ]
+    const platformNotifications = await this.loadPlatformNotificationsPage(take, cursor)
+    const sources = platformNotifications.map(mapPlatformNotificationSource)
 
     return createNotificationSourcePage(sources, limit)
-  }
-
-  private async loadPendingDocumentCollaborationUserInvites(
-    userId: string,
-  ): Promise<PersistedDocumentCollaborationUserInviteNotification[]> {
-    return this.prisma.documentCollaborationUserInvite.findMany({
-      where: {
-        inviteeUserId: userId,
-        status: DOCUMENT_COLLABORATION_USER_INVITE_STATUS.PENDING,
-        rootDocument: {
-          status: {
-            in: [DocumentStatus.ACTIVE, DocumentStatus.LOCKED],
-          },
-          trashedAt: null,
-        },
-      },
-      select: documentCollaborationUserInviteNotificationSelect,
-      orderBy: [
-        { createdAt: 'desc' },
-        { id: 'asc' },
-      ],
-    })
   }
 
   private async loadPlatformNotificationsPage(
@@ -449,67 +354,15 @@ export class NotificationsService {
     })
   }
 
-  private async loadPendingDocumentCollaborationUserInvitesPage(
-    userId: string,
-    take: number,
-    cursor: NotificationSourceCursor | null,
-  ): Promise<PersistedDocumentCollaborationUserInviteNotification[]> {
-    return this.prisma.documentCollaborationUserInvite.findMany({
-      where: {
-        inviteeUserId: userId,
-        status: DOCUMENT_COLLABORATION_USER_INVITE_STATUS.PENDING,
-        rootDocument: {
-          status: {
-            in: [DocumentStatus.ACTIVE, DocumentStatus.LOCKED],
-          },
-          trashedAt: null,
-        },
-        ...createDocumentCollaborationUserInviteCursorWhere(cursor),
-      },
-      select: documentCollaborationUserInviteNotificationSelect,
-      orderBy: [
-        { createdAt: 'desc' },
-        { id: 'asc' },
-      ],
-      take,
-    })
-  }
-
   private async loadUnreadNotificationSourcePage(
     userId: string,
     limit: number,
     cursor: NotificationSourceCursor | null,
   ): Promise<NotificationSourcePage> {
     const take = limit + 1
-    const [
-      platformNotificationRows,
-      documentCollaborationUserInviteRows,
-    ] = await Promise.all([
-      this.loadUnreadPlatformNotificationRows(userId, take, cursor),
-      this.loadUnreadDocumentCollaborationUserInviteRows(userId, take, cursor),
-    ])
-    const [
-      platformNotifications,
-      pendingDocumentCollaborationUserInvites,
-    ] = await Promise.all([
-      this.loadPlatformNotificationsByIds(platformNotificationRows.map(row => row.id)),
-      this.loadPendingDocumentCollaborationUserInvitesByIds(
-        userId,
-        documentCollaborationUserInviteRows.map(row => row.id),
-      ),
-    ])
-    const resolverCodeByInviteId = await this.loadResolverCodes(
-      pendingDocumentCollaborationUserInvites.map(invitation => invitation.id),
-    )
-    const sources = [
-      ...pendingDocumentCollaborationUserInvites.map(invitation =>
-        mapDocumentCollaborationUserInviteNotificationSource(
-          invitation,
-          resolverCodeByInviteId.get(invitation.id) ?? '',
-        ),
-      ),
-      ...platformNotifications.map(mapPlatformNotificationSource),
-    ]
+    const platformNotificationRows = await this.loadUnreadPlatformNotificationRows(userId, take, cursor)
+    const platformNotifications = await this.loadPlatformNotificationsByIds(platformNotificationRows.map(row => row.id))
+    const sources = platformNotifications.map(mapPlatformNotificationSource)
 
     return createNotificationSourcePage(sources, limit)
   }
@@ -530,32 +383,6 @@ export class NotificationsService {
         },
       },
       select: platformNotificationSelect,
-    })
-  }
-
-  private async loadPendingDocumentCollaborationUserInvitesByIds(
-    userId: string,
-    ids: string[],
-  ): Promise<PersistedDocumentCollaborationUserInviteNotification[]> {
-    if (ids.length === 0) {
-      return []
-    }
-
-    return this.prisma.documentCollaborationUserInvite.findMany({
-      where: {
-        id: {
-          in: ids,
-        },
-        inviteeUserId: userId,
-        status: DOCUMENT_COLLABORATION_USER_INVITE_STATUS.PENDING,
-        rootDocument: {
-          status: {
-            in: [DocumentStatus.ACTIVE, DocumentStatus.LOCKED],
-          },
-          trashedAt: null,
-        },
-      },
-      select: documentCollaborationUserInviteNotificationSelect,
     })
   }
 
@@ -581,31 +408,6 @@ export class NotificationsService {
     `)
   }
 
-  private async loadUnreadDocumentCollaborationUserInviteRows(
-    userId: string,
-    take: number,
-    cursor: NotificationSourceCursor | null,
-  ): Promise<NotificationSourceIdRow[]> {
-    return this.prisma.$queryRaw<NotificationSourceIdRow[]>(Prisma.sql`
-      SELECT invitation."id", invitation."createdAt" AS "messageAt"
-      FROM "DocumentCollaborationUserInvite" invitation
-      INNER JOIN "Document" document ON document."id" = invitation."rootDocumentId"
-      LEFT JOIN "NotificationReadReceipt" receipt
-        ON receipt."userId" = ${userId}
-       AND receipt."sourceKind" = 'DOCUMENT_COLLABORATION_USER_INVITE'::"NotificationSourceKind"
-       AND receipt."sourceId" = invitation."id"
-      WHERE invitation."deletedAt" IS NULL
-        AND invitation."inviteeUserId" = ${userId}
-        AND invitation."status" = 'PENDING'::"DocumentCollaborationUserInviteStatus"
-        AND document."status" IN ('ACTIVE'::"DocumentStatus", 'LOCKED'::"DocumentStatus")
-        AND document."trashedAt" IS NULL
-        AND receipt."id" IS NULL
-        ${createDocumentCollaborationUserInviteCursorSql(cursor)}
-      ORDER BY invitation."createdAt" DESC, invitation."id" ASC
-      LIMIT ${take}
-    `)
-  }
-
   private async countUnreadPlatformNotifications(userId: string): Promise<number> {
     const rows = await this.prisma.$queryRaw<UnreadNotificationCountRow[]>(Prisma.sql`
       SELECT COUNT(*)::int AS "count"
@@ -621,48 +423,6 @@ export class NotificationsService {
     `)
 
     return Number(rows[0]?.count ?? 0)
-  }
-
-  private async countUnreadDocumentCollaborationUserInvites(userId: string): Promise<number> {
-    const rows = await this.prisma.$queryRaw<UnreadNotificationCountRow[]>(Prisma.sql`
-      SELECT COUNT(*)::int AS "count"
-      FROM "DocumentCollaborationUserInvite" invitation
-      INNER JOIN "Document" document ON document."id" = invitation."rootDocumentId"
-      LEFT JOIN "NotificationReadReceipt" receipt
-        ON receipt."userId" = ${userId}
-       AND receipt."sourceKind" = 'DOCUMENT_COLLABORATION_USER_INVITE'::"NotificationSourceKind"
-       AND receipt."sourceId" = invitation."id"
-      WHERE invitation."deletedAt" IS NULL
-        AND invitation."inviteeUserId" = ${userId}
-        AND invitation."status" = 'PENDING'::"DocumentCollaborationUserInviteStatus"
-        AND document."status" IN ('ACTIVE'::"DocumentStatus", 'LOCKED'::"DocumentStatus")
-        AND document."trashedAt" IS NULL
-        AND receipt."id" IS NULL
-    `)
-
-    return Number(rows[0]?.count ?? 0)
-  }
-
-  private async loadResolverCodes(inviteIds: string[]): Promise<Map<string, string>> {
-    if (inviteIds.length === 0) {
-      return new Map()
-    }
-
-    const resolverEntries = await this.prisma.collaborationResolverEntry.findMany({
-      where: {
-        type: COLLABORATION_RESOLVER_ENTRY_TYPE.DOCUMENT_USER_INVITE,
-        targetId: {
-          in: inviteIds,
-        },
-        status: COLLABORATION_RESOLVER_ENTRY_STATUS.ACTIVE,
-      },
-      select: {
-        targetId: true,
-        code: true,
-      },
-    })
-
-    return new Map(resolverEntries.map(entry => [entry.targetId, entry.code]))
   }
 
   private async loadReadReceiptBySourceKey(
@@ -703,60 +463,6 @@ function toNotificationItemWithReadState(
     readAt: source.readAt?.toISOString() ?? null,
     isUnread: source.readAt === null,
   } as NotificationItem
-}
-
-function mapDocumentCollaborationUserInviteNotification(
-  invitation: PersistedDocumentCollaborationUserInviteNotification,
-  resolverCode: string,
-): DocumentCollaborationUserInviteNotification {
-  return {
-    id: invitation.id,
-    rootDocumentId: invitation.rootDocumentId,
-    resolverCode,
-    documentTitle: invitation.rootDocument.title,
-    inviter: toAuditUserSummary(invitation.createdByUser),
-    permission: invitation.permission as DocumentCollaborationUserInviteNotification['permission'],
-    scope: invitation.scope as DocumentCollaborationUserInviteNotification['scope'],
-    status: invitation.status as DocumentCollaborationUserInviteNotification['status'],
-    createdAt: invitation.createdAt.toISOString(),
-    updatedAt: invitation.updatedAt.toISOString(),
-  }
-}
-
-function mapDocumentCollaborationUserInviteNotificationSource(
-  invitation: PersistedDocumentCollaborationUserInviteNotification,
-  resolverCode: string,
-): NotificationSourceProjection {
-  const documentInvite = mapDocumentCollaborationUserInviteNotification(invitation, resolverCode)
-  const inviter = toAuditUserSummary(invitation.createdByUser)
-  const inviterLabel = inviter?.displayName || '有人'
-  const title = `邀请你协作《${invitation.rootDocument.title}》`
-  const contentText = `${inviterLabel} 邀请你协作文档《${invitation.rootDocument.title}》`
-
-  return {
-    sourceKey: createSourceKey(
-      NOTIFICATION_SOURCE_KIND.DOCUMENT_COLLABORATION_USER_INVITE,
-      invitation.id,
-    ),
-    sourceKind: NotificationSourceKind.DOCUMENT_COLLABORATION_USER_INVITE,
-    sourceId: invitation.id,
-    messageAt: invitation.createdAt,
-    item: {
-      id: createSourceKey(NOTIFICATION_SOURCE_KIND.DOCUMENT_COLLABORATION_USER_INVITE, invitation.id),
-      kind: NOTIFICATION_SOURCE_KIND.DOCUMENT_COLLABORATION_USER_INVITE,
-      sourceId: invitation.id,
-      title,
-      content: createPlainTextContent(contentText),
-      contentText,
-      sender: {
-        displayName: inviterLabel,
-        avatarUrl: inviter?.avatarUrl ?? null,
-      },
-      messageAt: invitation.createdAt.toISOString(),
-      createdAt: invitation.createdAt.toISOString(),
-      documentInvite,
-    },
-  }
 }
 
 function mapPlatformNotificationSource(notification: PersistedPlatformNotification): NotificationSourceProjection {
@@ -865,37 +571,6 @@ function createPlatformNotificationCursorWhere(
   return { OR: or }
 }
 
-function createDocumentCollaborationUserInviteCursorWhere(
-  cursor: NotificationSourceCursor | null,
-): Prisma.DocumentCollaborationUserInviteWhereInput {
-  if (!cursor) {
-    return {}
-  }
-
-  const sameTimeKindDelta = NotificationSourceKind.DOCUMENT_COLLABORATION_USER_INVITE.localeCompare(cursor.sourceKind)
-  const or: Prisma.DocumentCollaborationUserInviteWhereInput[] = [
-    {
-      createdAt: {
-        lt: cursor.messageAt,
-      },
-    },
-  ]
-
-  if (sameTimeKindDelta > 0) {
-    or.push({ createdAt: cursor.messageAt })
-  }
-  else if (sameTimeKindDelta === 0) {
-    or.push({
-      createdAt: cursor.messageAt,
-      id: {
-        gt: cursor.sourceId,
-      },
-    })
-  }
-
-  return { OR: or }
-}
-
 function createPlatformNotificationCursorSql(cursor: NotificationSourceCursor | null): Prisma.Sql {
   if (!cursor) {
     return Prisma.empty
@@ -909,21 +584,6 @@ function createPlatformNotificationCursorSql(cursor: NotificationSourceCursor | 
       : Prisma.empty
 
   return Prisma.sql`AND (pn."publishedAt" < ${cursor.messageAt} ${sameTimeSql})`
-}
-
-function createDocumentCollaborationUserInviteCursorSql(cursor: NotificationSourceCursor | null): Prisma.Sql {
-  if (!cursor) {
-    return Prisma.empty
-  }
-
-  const sameTimeKindDelta = NotificationSourceKind.DOCUMENT_COLLABORATION_USER_INVITE.localeCompare(cursor.sourceKind)
-  const sameTimeSql = sameTimeKindDelta > 0
-    ? Prisma.sql`OR invitation."createdAt" = ${cursor.messageAt}`
-    : sameTimeKindDelta === 0
-      ? Prisma.sql`OR (invitation."createdAt" = ${cursor.messageAt} AND invitation."id" > ${cursor.sourceId})`
-      : Prisma.empty
-
-  return Prisma.sql`AND (invitation."createdAt" < ${cursor.messageAt} ${sameTimeSql})`
 }
 
 function encodeNotificationCursor(source: NotificationSourceCursor): string {
@@ -970,13 +630,6 @@ function decodeNotificationCursor(cursor: string | undefined): NotificationSourc
 
 function createSourceKey(sourceKind: NotificationSourceKind | string, sourceId: string) {
   return `${sourceKind}:${sourceId}`
-}
-
-function createPlainTextContent(text: string): TiptapJsonContent {
-  return [{
-    type: 'paragraph',
-    content: [{ type: 'text', text }],
-  }]
 }
 
 function normalizeTiptapContent(content: unknown): TiptapJsonContent {

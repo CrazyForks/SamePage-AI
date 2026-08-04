@@ -3,8 +3,8 @@ layout: home
 
 hero:
   name: Lexora
-  text: Documents, collaboration, and AI in one living workspace
-  tagline: A collaborative document platform with AI chat, document editing, public publishing, admin tools, and self-hosting support.
+  text: Documents and AI in a focused personal workspace
+  tagline: A document-driven AI workspace with rich-text editing, history, public publishing, admin tools, and self-hosting support.
   image:
     src: /ui.png
     alt: Lexora interface preview
@@ -35,15 +35,15 @@ features:
       wrap: true
     details: A page tree backed by a rich text editor with code blocks, tables, math, history, and trash.
     link: /en/guide/documents
-  - title: Collaboration
+  - title: Public Publishing
     icon:
-      src: /features/collaboration.svg
-      alt: Collaboration
+      src: /features/publication.svg
+      alt: Public Publishing
       width: '28'
       height: '28'
       wrap: true
-    details: Invite users, create collaboration links, and control read or edit access across a page subtree.
-    link: /en/guide/collaboration
+    details: Publish a single document or a collection of pages as a read-only documentation site.
+    link: /en/guide/publication
   - title: Self-hosting
     icon:
       src: /features/self-host.svg

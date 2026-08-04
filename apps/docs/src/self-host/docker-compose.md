@@ -7,11 +7,10 @@ Lexora 推荐使用 Docker Compose 部署。
 生产部署包含以下核心服务：
 
 - `postgres`：PostgreSQL 数据库。
-- `redis`：运行事件、队列、锁和协作权限失效通知。
+- `redis`：Agent 运行事件、队列、锁和后台任务协调。
 - `rustfs`：S3 兼容对象存储，用于图片和附件。
 - `migrate`：启动前执行 Prisma migration。
 - `api`：NestJS API 服务，拥有产品语义、权限、审计和内部接口。
-- `collab`：Hocuspocus / Yjs 协作服务，负责实时文档连接。
 - `agent`：LangGraph / LangChain AI 运行服务。
 - `web`：前端静态资源和反向代理入口。
 
@@ -35,7 +34,7 @@ Lexora 推荐使用 Docker Compose 部署。
 在仓库根目录运行：
 
 ```bash
-docker compose -f infrastructure/compose.prod.yml --env-file infrastructure/.env up -d
+docker compose -f infrastructure/compose.prod.yml --env-file infrastructure/.env up -d --remove-orphans
 ```
 
 如果你使用自己的部署目录，请确保 compose 文件和 `.env` 路径对应。
@@ -48,7 +47,7 @@ docker compose -f infrastructure/compose.prod.yml --env-file infrastructure/.env
 docker compose -f infrastructure/compose.prod.yml ps
 ```
 
-`api`、`collab`、`agent` 和 `web` 都应进入健康状态。首次启动时，`migrate` 会在数据库迁移完成后退出。
+`api`、`agent` 和 `web` 都应进入健康状态。首次启动时，`migrate` 会在数据库迁移完成后退出。
 
 ## 访问实例
 

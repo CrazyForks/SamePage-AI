@@ -14,7 +14,6 @@ import {
 } from '@nestjs/common'
 import { DocumentStatus } from '@prisma/client'
 import { PrismaService } from '../../../database/prisma.service'
-import { CollabPermissionInvalidationPublisherService } from '../../../infrastructure/publisher/collab-permission-invalidation-publisher.service'
 import { DocumentAccessService } from '../core/access.service'
 import {
   buildWorkspaceDocumentContext,
@@ -30,7 +29,6 @@ export class DocumentTrashService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly documentAccessService: DocumentAccessService,
-    private readonly collabPermissionInvalidationPublisher: CollabPermissionInvalidationPublisherService,
   ) {}
 
   async getTrashDocuments(userId: string, workspaceId: string): Promise<DocumentTrashItem[]> {
@@ -151,13 +149,6 @@ export class DocumentTrashService {
         },
       })
     })
-
-    await this.collabPermissionInvalidationPublisher.publishPermissionInvalidations(
-      targetDocumentIds.map(documentId => ({
-        reason: 'document-trashed' as const,
-        documentId,
-      })),
-    )
   }
 
   private async trashDocuments(userId: string, documentIds: string[]): Promise<void> {
@@ -178,13 +169,6 @@ export class DocumentTrashService {
         },
       })
     })
-
-    await this.collabPermissionInvalidationPublisher.publishPermissionInvalidations(
-      documentIds.map(documentId => ({
-        reason: 'document-trashed' as const,
-        documentId,
-      })),
-    )
   }
 
   private async loadWorkspaceDocumentContext(input: {

@@ -9,15 +9,15 @@
 | `POSTGRES_DB` | PostgreSQL 数据库名。 |
 | `POSTGRES_USER` | PostgreSQL 用户名。 |
 | `POSTGRES_PASSWORD` | PostgreSQL 密码。 |
-| `DATABASE_URL` | API、迁移和协作服务使用的数据库连接串。 |
-| `REDIS_URL` | API、协作服务和 Agent 使用的 Redis 地址。 |
+| `DATABASE_URL` | API、迁移和 Agent 持久化使用的数据库连接串。 |
+| `REDIS_URL` | API 与 Agent 使用的 Redis 地址。 |
 
 ## 系统安全
 
 | 变量 | 说明 |
 | --- | --- |
 | `APP_SECRET` | API 加密和签名相关的根密钥，必须使用高强度随机值。 |
-| `APP_INTERNAL_KEY` | API、Collab 和 Agent 服务间内部调用密钥。生产环境必须使用高强度随机值，开发环境可以使用默认值。 |
+| `APP_INTERNAL_KEY` | API 与 Agent 服务间内部调用密钥。生产环境必须使用高强度随机值，开发环境可以使用默认值。 |
 | `SYSTEM_ADMIN` | 初始系统管理员标识。 |
 
 `APP_SECRET` 不应在重启或升级时随意变化，否则可能影响已签发凭据或加密数据。
@@ -45,7 +45,7 @@
 
 ## 服务间地址
 
-`API_INTERNAL_URL` 用于 collab 和 agent 调用 API 内部接口。它应是 API 服务 origin，不包含 `/api`。
+`API_INTERNAL_URL` 用于 Agent 调用 API 内部接口。它应是 API 服务 origin，不包含 `/api`。
 
 生产 compose 内部默认使用：
 

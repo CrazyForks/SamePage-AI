@@ -36,6 +36,4 @@ export interface SessionNotificationPanelProps {
   notificationItems: SessionNotificationItem[]
   unreadCount: number
   hasMore: boolean
-  actingInvitationId: string
-  actingInvitationAction: 'accept' | 'decline' | null
 }

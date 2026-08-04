@@ -36,8 +36,6 @@ export const AuditUserSummarySchema = UserAccountIdentitySchema.pick({
   avatarUrl: true,
 })
 
-export const UserCollabIdentitySchema = UserAccountIdentitySchema
-
 export const AuthPasswordSchema = z.string()
   .min(AUTH_PASSWORD_MIN_LENGTH)
   .max(AUTH_PASSWORD_MAX_LENGTH)

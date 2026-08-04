@@ -6,7 +6,6 @@ import type {
   DocumentSectionPanelProps,
   DocumentSectionPanelSlots,
 } from './typing'
-import { DOCUMENT_COLLECTION } from '@haohaoxue/lexora-contracts/document/constants'
 import { useElementSize } from '@vueuse/core'
 import { computed, nextTick, shallowRef, useTemplateRef, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -32,11 +31,7 @@ const treeBodyRef = useTemplateRef<HTMLElement>('treeBody')
 const { height: treeBodyHeight } = useElementSize(treeBodyRef)
 const isOwnedCollection = computed(() => isOwnedDocumentCollection(props.group.id))
 const canCreateRoot = computed(() => isOwnedCollection.value && !props.selectionMode)
-const emptyDescription = computed(() =>
-  props.group.id === DOCUMENT_COLLECTION.COLLABORATION
-    ? t('docs.treeMenu.emptyCollaboration')
-    : t('docs.treeMenu.emptyDocuments'),
-)
+const emptyDescription = computed(() => t('docs.treeMenu.emptyDocuments'))
 const treeProps = {
   value: 'id',
   label: 'title',

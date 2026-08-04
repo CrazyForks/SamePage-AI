@@ -1,7 +1,9 @@
 #!/usr/bin/env node
+
 import { existsSync } from 'node:fs'
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { dirname, resolve } from 'node:path'
+import process from 'node:process'
 import { fileURLToPath } from 'node:url'
 
 const GENERATED_HEADER = '# Generated from infrastructure/.env. Do not edit directly.'
@@ -48,21 +50,6 @@ const APP_ENV_SPECS = [
       'STORAGE_ENDPOINT',
       'STORAGE_ACCESS_KEY',
       'STORAGE_SECRET_KEY',
-    ],
-  },
-  {
-    path: 'apps/collab/.env',
-    entries: [
-      ['DATABASE_URL', source => source.DATABASE_URL],
-      ['API_INTERNAL_URL', source => source.API_INTERNAL_URL],
-      ['REDIS_URL', source => source.REDIS_URL],
-      ['APP_INTERNAL_KEY', source => source.APP_INTERNAL_KEY],
-    ],
-    required: [
-      'DATABASE_URL',
-      'API_INTERNAL_URL',
-      'REDIS_URL',
-      'APP_INTERNAL_KEY',
     ],
   },
   {

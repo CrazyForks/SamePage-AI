@@ -2,7 +2,6 @@ import type { Node as ProseMirrorNode } from '@tiptap/pm/model'
 import type { EditorState, Transaction } from '@tiptap/pm/state'
 import type { BodyBlockIdNodeType } from '../content/blockId'
 import { Extension } from '@tiptap/core'
-import { isChangeOrigin } from '@tiptap/extension-collaboration'
 import { Plugin, PluginKey } from '@tiptap/pm/state'
 import {
   BODY_BLOCK_ID_ATTRIBUTE,
@@ -13,7 +12,6 @@ import {
   isBlockId,
   isBodyBlockIdNodeTypeName,
 } from '../content/blockId'
-import { DOCUMENT_RUNTIME_NORMALIZER_TRANSACTION_META } from './DocumentRuntimeNormalizer'
 
 const BLOCK_ID_TRANSACTION_META = 'lexoraBlockIdTransaction'
 
@@ -72,15 +70,10 @@ export const BlockId = Extension.create<BlockIdOptions>({
         appendTransaction: (transactions, _, newState) => {
           const changedTransactions = transactions.filter(transaction =>
             transaction.docChanged
-            && !transaction.getMeta(BLOCK_ID_TRANSACTION_META)
-            && !transaction.getMeta(DOCUMENT_RUNTIME_NORMALIZER_TRANSACTION_META),
+            && !transaction.getMeta(BLOCK_ID_TRANSACTION_META),
           )
 
           if (changedTransactions.length === 0) {
-            return
-          }
-
-          if (changedTransactions.every(isChangeOrigin)) {
             return
           }
 

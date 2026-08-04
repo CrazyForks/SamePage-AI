@@ -1,6 +1,5 @@
 import type { Editor, EditorEvents } from '@tiptap/core'
 import { onBeforeUnmount, onMounted, shallowRef } from 'vue'
-import { isCollaborationOriginTransaction } from './collaborationOrigin'
 
 type EditorSnapshotEvent = 'selectionUpdate' | 'transaction' | 'focus' | 'blur'
 
@@ -13,7 +12,6 @@ const DEFAULT_EDITOR_SNAPSHOT_EVENTS = [
 
 interface UseEditorSnapshotOptions {
   events?: readonly EditorSnapshotEvent[]
-  ignoreCollaborationOrigin?: boolean
 }
 
 export function useEditorSnapshot(
@@ -22,25 +20,16 @@ export function useEditorSnapshot(
 ) {
   const version = shallowRef(0)
   const events = options.events ?? DEFAULT_EDITOR_SNAPSHOT_EVENTS
-  const ignoreCollaborationOrigin = options.ignoreCollaborationOrigin ?? false
 
   function syncSnapshot() {
     version.value += 1
   }
 
   const eventHandlers = {
-    selectionUpdate: (event?: EditorEvents['selectionUpdate']) => {
-      if (ignoreCollaborationOrigin && isCollaborationOriginTransaction(event?.transaction)) {
-        return
-      }
-
+    selectionUpdate: (_event?: EditorEvents['selectionUpdate']) => {
       syncSnapshot()
     },
-    transaction: (event?: EditorEvents['transaction']) => {
-      if (ignoreCollaborationOrigin && isCollaborationOriginTransaction(event?.transaction)) {
-        return
-      }
-
+    transaction: (_event?: EditorEvents['transaction']) => {
       syncSnapshot()
     },
     focus: () => {

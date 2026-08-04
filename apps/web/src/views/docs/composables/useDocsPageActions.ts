@@ -161,10 +161,6 @@ export const useDocsPageActions = createSharedComposable(() => {
   }
 
   async function createRootDocument(collectionId: DocumentTreeCollectionId = DOCUMENT_COLLECTION.PERSONAL) {
-    if (collectionId === DOCUMENT_COLLECTION.COLLABORATION) {
-      return
-    }
-
     lastInaccessibleRedirectDocumentId = null
     await tree.createRootDocument(collectionId)
   }

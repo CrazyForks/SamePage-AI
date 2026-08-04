@@ -46,9 +46,7 @@ export interface BubbleToolbarOverlayController {
 }
 
 export function useBubbleToolbarOverlay(editor: Editor): BubbleToolbarOverlayController {
-  const editorSnapshot = useEditorSnapshot(editor, {
-    ignoreCollaborationOrigin: true,
-  })
+  const editorSnapshot = useEditorSnapshot(editor)
   const linkPanel = useLinkPanel(() => editor, {
     onClosed: hideLinkPanelMenu,
     onOpened: showLinkPanelMenu,

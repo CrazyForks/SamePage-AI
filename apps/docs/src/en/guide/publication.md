@@ -1,6 +1,6 @@
 # Public Publishing
 
-Public publishing exposes documents to outside visitors. Published content is read-only and does not enter the document collaboration runtime.
+Public publishing exposes documents to outside visitors. Published content is always read-only and does not create editing or autosave state.
 
 ## Single Page Publishing
 

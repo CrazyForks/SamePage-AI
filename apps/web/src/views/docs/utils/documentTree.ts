@@ -4,7 +4,6 @@ import type {
   DocumentTreeGroup,
   OwnedDocumentCollectionId,
 } from '@haohaoxue/lexora-contracts'
-import { DOCUMENT_COLLECTION } from '@haohaoxue/lexora-contracts/document/constants'
 
 export interface DocumentDeletePlan {
   rootDocumentIds: string[]
@@ -19,7 +18,7 @@ export type DocumentTreeItemIconName
     | 'document-tree-folder-open'
 
 export function isOwnedDocumentCollection(collectionId: DocumentTreeCollectionId): collectionId is OwnedDocumentCollectionId {
-  return collectionId !== DOCUMENT_COLLECTION.COLLABORATION
+  return Boolean(collectionId)
 }
 
 export function resolveDocumentTreeItemIcon(

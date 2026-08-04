@@ -16,9 +16,6 @@ import type {
 } from '@haohaoxue/lexora-contracts'
 import type { PersistedDocument, WorkspaceDocumentContext } from '../core/documents.utils'
 import {
-  COLLAB_PERMISSION_INVALIDATION_REASON,
-  DOCUMENT_COLLABORATION_GRANT_STATUS,
-  DOCUMENT_COLLABORATION_SCOPE,
   DOCUMENT_COLLECTION,
   DOCUMENT_DEFAULT_TITLE,
   DOCUMENT_VERSION_SNAPSHOT_SOURCE,
@@ -29,7 +26,6 @@ import {
 } from '@haohaoxue/lexora-contracts'
 import {
   createDocumentTitleContent,
-  createTiptapDocumentCollaborationCheckpointState,
   getDocumentTitlePlainText,
   resolveOwnedDocumentCollectionId,
   summarizeDocumentContent,
@@ -41,7 +37,6 @@ import {
 } from '@nestjs/common'
 import { DocumentStatus, Prisma } from '@prisma/client'
 import { PrismaService } from '../../../database/prisma.service'
-import { CollabPermissionInvalidationPublisherService } from '../../../infrastructure/publisher/collab-permission-invalidation-publisher.service'
 import { DocumentContentService } from '../content/content.service'
 import { DocumentAccessService } from '../core/access.service'
 import {
@@ -57,7 +52,6 @@ export class DocumentsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly documentAccessService: DocumentAccessService,
-    private readonly collabPermissionInvalidationPublisher: CollabPermissionInvalidationPublisherService,
     private readonly documentContentService: DocumentContentService,
   ) {}
 
@@ -115,18 +109,10 @@ export class DocumentsService {
         },
       })
 
-      const checkpointState = createTiptapDocumentCollaborationCheckpointState({
-        title,
-        body,
-      })
       const currentProjection = await tx.documentCurrentProjection.create({
         data: {
           documentId: createdDocument.id,
           projectionRevision: 1,
-          runtimeEpoch: 1,
-          projectedUpdateSeq: 0,
-          checkpointSeq: 1,
-          checkpointUpdateSeq: 0,
           schemaVersion: TIPTAP_SCHEMA_VERSION,
           title: toPrismaJsonValue(title),
           body: toPrismaJsonValue(body),
@@ -142,10 +128,6 @@ export class DocumentsService {
           version: 1,
           basedOnProjectionId: currentProjection.id,
           basedOnProjectionRevision: 1,
-          runtimeEpoch: 1,
-          projectedUpdateSeq: 0,
-          checkpointSeq: 1,
-          checkpointUpdateSeq: 0,
           schemaVersion: TIPTAP_SCHEMA_VERSION,
           title: toPrismaJsonValue(title),
           body: toPrismaJsonValue(body),
@@ -154,19 +136,6 @@ export class DocumentsService {
         },
         select: {
           id: true,
-        },
-      })
-
-      await tx.documentYdoc.create({
-        data: {
-          documentId: createdDocument.id,
-          checkpointState: toPrismaBytes(checkpointState),
-          checkpointSeq: 1,
-          checkpointUpdateSeq: 0,
-          updateSeq: 0,
-          lastProjectedProjectionId: currentProjection.id,
-          lastProjectedProjectionRevision: 1,
-          lastProjectedAt: new Date(),
         },
       })
 
@@ -218,8 +187,6 @@ export class DocumentsService {
       ]
     }
 
-    const collaborationNodes = await this.loadCollaborationTree(userId)
-
     return [
       {
         id: DOCUMENT_COLLECTION.PERSONAL,
@@ -228,10 +195,6 @@ export class DocumentsService {
           DOCUMENT_COLLECTION.PERSONAL,
           workspace.type,
         ),
-      },
-      {
-        id: DOCUMENT_COLLECTION.COLLABORATION,
-        nodes: collaborationNodes,
       },
     ]
   }
@@ -370,12 +333,6 @@ export class DocumentsService {
 
     collectDescendantDocumentIds(id, context, descendantDocumentIds)
     descendantDocumentIds.delete(id)
-    const shouldInvalidateCollabConnections
-      = nextVisibility === DOCUMENT_VISIBILITY.PRIVATE && nextVisibility !== document.visibility
-    const invalidationTargetIds = shouldInvalidateCollabConnections
-      ? [id, ...Array.from(descendantDocumentIds)]
-      : []
-
     await this.prisma.$transaction(async (tx) => {
       await tx.document.update({
         where: { id },
@@ -398,15 +355,6 @@ export class DocumentsService {
         })
       }
     })
-
-    if (invalidationTargetIds.length > 0) {
-      await this.collabPermissionInvalidationPublisher.publishPermissionInvalidations(
-        invalidationTargetIds.map(documentId => ({
-          reason: COLLAB_PERMISSION_INVALIDATION_REASON.DOCUMENT_TRASHED,
-          documentId,
-        })),
-      )
-    }
 
     return await this.documentContentService.getDocumentCurrent(userId, id)
   }
@@ -522,89 +470,6 @@ export class DocumentsService {
       children,
     }
   }
-
-  private async loadCollaborationTree(userId: string): Promise<DocumentItem[]> {
-    const grants = await this.prisma.documentCollaborationGrant.findMany({
-      where: {
-        userId,
-        status: DOCUMENT_COLLABORATION_GRANT_STATUS.ACTIVE,
-        rootDocument: {
-          trashedAt: null,
-          status: {
-            in: [DocumentStatus.ACTIVE, DocumentStatus.LOCKED],
-          },
-        },
-      },
-      select: {
-        rootDocumentId: true,
-        scope: true,
-        rootDocument: {
-          select: {
-            workspaceId: true,
-          },
-        },
-      },
-      orderBy: [
-        { updatedAt: 'desc' },
-        { id: 'asc' },
-      ],
-    })
-
-    if (!grants.length) {
-      return []
-    }
-
-    const workspaceIds = Array.from(new Set(grants.map(grant => grant.rootDocument.workspaceId)))
-    const documents = await this.prisma.document.findMany({
-      where: {
-        workspaceId: {
-          in: workspaceIds,
-        },
-        status: {
-          in: [DocumentStatus.ACTIVE, DocumentStatus.LOCKED],
-        },
-        trashedAt: null,
-      },
-      select: documentSelect,
-      orderBy: [
-        { order: 'asc' },
-        { updatedAt: 'desc' },
-      ],
-    })
-    const allContext = buildWorkspaceDocumentContext(documents)
-    const authorizedDocumentIds = new Set<string>()
-
-    for (const grant of grants) {
-      if (grant.scope === DOCUMENT_COLLABORATION_SCOPE.DESCENDANTS) {
-        collectDescendantDocumentIds(grant.rootDocumentId, allContext, authorizedDocumentIds)
-      }
-      else {
-        authorizedDocumentIds.add(grant.rootDocumentId)
-      }
-    }
-
-    const context = buildWorkspaceDocumentContext(documents.filter(document => authorizedDocumentIds.has(document.id)))
-
-    return context.documents
-      .filter(document => !document.parentId || !authorizedDocumentIds.has(document.parentId))
-      .map(document => this.buildCollaborationBranch(document, context))
-  }
-
-  private buildCollaborationBranch(
-    document: PersistedDocument,
-    context: WorkspaceDocumentContext,
-  ): DocumentItem {
-    const children = (context.childrenByParent.get(document.id) ?? [])
-      .map(child => this.buildCollaborationBranch(child, context))
-
-    return {
-      ...toDocumentBase(document),
-      parentId: document.parentId,
-      hasChildren: children.length > 0,
-      hasContent: Boolean(document.currentProjectionId) && document.summary.length > 0,
-      children,
-    }
-  }
 }
 
 function toDocumentBase(document: PersistedDocument): DocumentBase {
@@ -648,8 +513,4 @@ function normalizeDocumentVisibilityForWorkspace(input: {
 
 function toPrismaJsonValue(value: unknown): Prisma.InputJsonValue {
   return value as Prisma.InputJsonValue
-}
-
-function toPrismaBytes(payload: Uint8Array): Uint8Array<ArrayBuffer> {
-  return new Uint8Array(payload)
 }

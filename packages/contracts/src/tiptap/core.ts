@@ -7,16 +7,16 @@ export { TIPTAP_SCHEMA_VERSION } from './constants'
 const TiptapJsonMarkPayloadSchema = z.object({
   type: z.string(),
   attrs: z.record(z.string(), z.unknown()).optional(),
-}).catchall(z.unknown()) satisfies z.ZodType<TiptapJsonMarkPayload>
+}).strict() satisfies z.ZodType<TiptapJsonMarkPayload>
 
 const TiptapJsonNodePayloadSchema: z.ZodType<TiptapJsonNodePayload> = z.lazy(() =>
   z.object({
-    type: z.string().optional(),
+    type: z.string(),
     attrs: z.record(z.string(), z.unknown()).optional(),
     text: z.string().optional(),
     content: z.array(TiptapJsonNodePayloadSchema).optional(),
     marks: z.array(TiptapJsonMarkPayloadSchema).optional(),
-  }).catchall(z.unknown()),
+  }).strict(),
 )
 
 export const TiptapSchemaVersionSchema = z.literal(TIPTAP_SCHEMA_VERSION)

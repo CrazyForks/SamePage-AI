@@ -14,7 +14,6 @@ import {
 } from '@nestjs/common'
 import { Prisma } from '@prisma/client'
 import { PrismaService } from '../../database/prisma.service'
-import { CollabPermissionInvalidationPublisherService } from '../../infrastructure/publisher/collab-permission-invalidation-publisher.service'
 
 const teamWorkspaceMembershipSelect = {
   role: true,
@@ -63,7 +62,6 @@ type WorkspaceMemberSummaryRecord = Prisma.WorkspaceMemberGetPayload<{
 export class TeamWorkspaceMembersService {
   constructor(
     private readonly prisma: PrismaService,
-    private readonly collabPermissionInvalidationPublisher: CollabPermissionInvalidationPublisherService,
   ) {}
 
   async listVisibleTeamWorkspaces(userId: string): Promise<TeamWorkspaceSummary[]> {
@@ -360,12 +358,6 @@ export class TeamWorkspaceMembersService {
       },
     })
 
-    await this.collabPermissionInvalidationPublisher.publishPermissionInvalidations([{
-      reason: 'member-removed',
-      workspaceId,
-      userId,
-    }])
-
     return null
   }
 
@@ -412,12 +404,6 @@ export class TeamWorkspaceMembersService {
         status: WORKSPACE_MEMBER_STATUS.REMOVED,
       },
     })
-
-    await this.collabPermissionInvalidationPublisher.publishPermissionInvalidations([{
-      reason: 'member-removed',
-      workspaceId,
-      userId: memberUserId,
-    }])
 
     return null
   }

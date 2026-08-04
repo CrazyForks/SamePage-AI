@@ -30,9 +30,7 @@ export function useBubbleToolbar(editor: Editor, options: {
   onRequestComment: () => void
   onRequestAddSelectionContext?: () => void
 }): BubbleToolbarController {
-  const editorSnapshot = useEditorSnapshot(editor, {
-    ignoreCollaborationOrigin: true,
-  })
+  const editorSnapshot = useEditorSnapshot(editor)
   const overlay = useBubbleToolbarOverlay(editor)
   const actionRegistry = createMenuActionRegistry({
     editor,

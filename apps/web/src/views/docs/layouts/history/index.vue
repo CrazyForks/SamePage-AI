@@ -36,6 +36,7 @@ const { createRootDocument, openDefaultDocument } = useDocsPageActions()
       <ElButton
         text
         class="docs-history-view__back justify-self-start text-secondary max-[1180px]:justify-self-stretch"
+        :disabled="isRestoringSnapshot"
         @click="closeHistoryMode"
       >
         <span class="inline-flex items-center gap-1.5 text-[13px] font-medium">

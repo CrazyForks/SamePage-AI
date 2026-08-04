@@ -40,8 +40,6 @@ const footerMetaItems = computed(() => [
       :editable="isEditable"
       :autofocus-title="props.autofocusTitle"
       :footer-meta-items="footerMetaItems"
-      :title-collaboration="props.collaboration?.title ?? null"
-      :body-collaboration="props.collaboration?.body ?? null"
       :active-block-id="props.activeBlockId"
       :body-ai-draft-preview="activeDocumentAiCandidate"
       :body-ai-block-rewrite-enabled="true"

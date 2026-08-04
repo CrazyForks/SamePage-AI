@@ -1,5 +1,4 @@
 import type {
-  CreateCollabTicketResponse,
   DocumentAsset,
   ResolveDocumentAssetsRequest,
   ResolveDocumentAssetsResponse,
@@ -15,22 +14,10 @@ import { ZodValidationPipe } from '../../../pipes/zod-validation.pipe'
 import { getRequestFile, readRequestFileBuffer } from '../../../utils/request-file'
 import { DOCUMENT_IMAGE_TOO_LARGE_MESSAGE } from './asset.constants'
 import { DocumentAssetsService } from './asset.service'
-import { DocumentCollabTicketsService } from './collab-ticket.service'
 
 @Controller('documents')
 export class DocumentAssetController {
-  constructor(
-    private readonly documentAssetsService: DocumentAssetsService,
-    private readonly documentCollabTicketsService: DocumentCollabTicketsService,
-  ) {}
-
-  @Post(':id/collab-ticket')
-  async createDocumentCollabTicket(
-    @CurrentUser() authUser: AuthUserContext,
-    @Param('id') id: string,
-  ): Promise<CreateCollabTicketResponse> {
-    return this.documentCollabTicketsService.createDocumentCollabTicket(authUser.id, id)
-  }
+  constructor(private readonly documentAssetsService: DocumentAssetsService) {}
 
   @Post(':id/assets/images')
   async uploadDocumentImage(

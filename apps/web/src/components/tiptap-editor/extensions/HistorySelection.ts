@@ -2,7 +2,6 @@ import type { EditorState, Transaction } from '@tiptap/pm/state'
 import type { HistorySelectionDeletedTextRecord } from '../commands/historySelection'
 import { Extension } from '@tiptap/core'
 import { Plugin, PluginKey, TextSelection } from '@tiptap/pm/state'
-import { ySyncPluginKey } from '@tiptap/y-tiptap'
 import {
   createHistorySelectionDeletedTextRecord,
   mergeHistorySelectionDeletedText,
@@ -11,11 +10,6 @@ import {
 
 interface HistorySelectionState {
   deletedText: HistorySelectionDeletedTextRecord | null
-}
-
-interface YSyncTransactionMeta {
-  isChangeOrigin?: boolean
-  isUndoRedoOperation?: boolean
 }
 
 interface HistoryTransactionMeta {
@@ -65,10 +59,6 @@ export const HistorySelection = Extension.create({
                   ? pluginState.deletedText
                   : null,
               }
-            }
-
-            if (isYChangeOriginTransaction(transaction)) {
-              return pluginState
             }
 
             const deletedText = readHistorySelectionDeletedText(transaction) ?? pendingCutDeletedText
@@ -146,29 +136,9 @@ function resolveRestoredTextCursorPosition(
 }
 
 function isHistoryRestoreTransaction(transaction: Transaction) {
-  const ySyncMeta = getYSyncMeta(transaction)
-
-  if (ySyncMeta?.isUndoRedoOperation) {
-    return true
-  }
-
   const historyMeta = transaction.getMeta('history$') as HistoryTransactionMeta | undefined
 
   return typeof historyMeta === 'object'
     && historyMeta !== null
     && historyMeta.redo === false
-}
-
-function isYChangeOriginTransaction(transaction: Transaction) {
-  return getYSyncMeta(transaction)?.isChangeOrigin === true
-}
-
-function getYSyncMeta(transaction: Transaction) {
-  const meta = transaction.getMeta(ySyncPluginKey) as YSyncTransactionMeta | undefined
-
-  if (typeof meta !== 'object' || meta === null) {
-    return null
-  }
-
-  return meta
 }

@@ -26,9 +26,8 @@ export const useDocsHistoryState = createSharedComposable(() => {
   const docsDocumentEditorMode = computed(() => isHistoryMode.value ? 'history' : 'default')
   const isDocsDocumentEditable = computed(() =>
     docsDocumentEditorMode.value === 'default'
-    && Boolean(activeDocument.currentDocument.value?.access.capabilities.canEdit)
-    && !activeDocument.isCollaborationReadonly.value
-    && !activeDocument.isCollaborationInitialSyncing.value,
+    && !activeDocument.isRestoringSnapshot.value
+    && Boolean(activeDocument.currentDocument.value?.access.capabilities.canEdit),
   )
   const isSelectedSnapshotCurrentContent = computed(() => {
     if (!selectedHistorySnapshot.value) {
@@ -101,6 +100,10 @@ export const useDocsHistoryState = createSharedComposable(() => {
   }
 
   function closeHistoryMode() {
+    if (activeDocument.isRestoringSnapshot.value) {
+      return
+    }
+
     isHistoryMode.value = false
   }
 

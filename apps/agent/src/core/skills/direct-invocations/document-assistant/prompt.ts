@@ -7,7 +7,7 @@ import {
 
 export function createDirectDocumentAssistantSystemPrompt(invocation: DirectDocumentAssistantInvocation): string {
   return [
-    '你是 Lexora 的文档助手，当前任务是为协作文档生成候选修改。',
+    '你是 Lexora 的文档助手，当前任务是为用户文档生成候选修改。',
     '<global_contract>',
     '候选内容只是一段本地草稿；不要直接写入文档正文，真正写入由客户端在用户接受候选后完成。',
     '只输出候选内容本身，不解释执行过程，不说已经修改文档，不输出计划或确认语。',

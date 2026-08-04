@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { UserCodeSchema, UserCollabIdentitySchema } from './identity'
+import { UserAccountIdentitySchema, UserCodeSchema } from './identity'
 import {
   WORKSPACE_DESCRIPTION_MAX_LENGTH,
   WORKSPACE_INVITE_STATUS_VALUES,
@@ -69,7 +69,7 @@ export const TeamWorkspaceSummarySchema = z.object({
 }).strict()
 
 export const WorkspaceMemberSummarySchema = z.object({
-  user: UserCollabIdentitySchema,
+  user: UserAccountIdentitySchema,
   role: WorkspaceMemberRoleSchema,
   status: WorkspaceMemberStatusSchema,
   joinedAt: IsoDateTimeStringSchema.nullable(),
@@ -81,7 +81,7 @@ export const WorkspaceInviteSummarySchema = z.object({
   id: z.string(),
   workspaceId: z.string(),
   workspaceName: z.string(),
-  invitee: UserCollabIdentitySchema,
+  invitee: UserAccountIdentitySchema,
   status: WorkspaceInviteStatusSchema,
   createdAt: IsoDateTimeStringSchema,
   updatedAt: IsoDateTimeStringSchema,

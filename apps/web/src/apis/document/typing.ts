@@ -1,7 +1,6 @@
 export type {
   BatchDeleteDocumentsRequest,
   BatchDeleteDocumentsResponse,
-  CreateCollabTicketResponse,
   CreateDocumentDuplicateOperationResponse,
   CreateDocumentMoveOperationResponse,
   CreateDocumentRequest,
@@ -18,11 +17,12 @@ export type {
   MoveDocumentTreeOperationRequest,
   PatchDocumentLayoutRequest,
   PatchDocumentMetaRequest,
-  PatchDocumentTitleRequest,
   ReadableDocumentSearchResult,
   ResolveDocumentAssetsRequest,
   ResolveDocumentAssetsResponse,
   RestoreDocumentVersionSnapshotRequest,
   RestoreDocumentVersionSnapshotResponse,
+  SaveDocumentContentRequest,
+  SaveDocumentContentResponse,
   SearchReadableDocumentsResponse,
 } from '@haohaoxue/lexora-contracts'

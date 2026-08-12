@@ -1,5 +1,5 @@
+import type { BuddyChatRunEvent } from '@/desktop/localChatTypes'
 import type { BuddyTranslate } from '@/i18n/buddyI18n'
-import type { BuddyChatRunEvent } from '@/lib/tauriRuntime'
 import {
   compactRunEventText,
   extractPatchChangeFilePaths,

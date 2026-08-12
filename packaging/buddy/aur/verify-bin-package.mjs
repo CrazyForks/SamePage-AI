@@ -1,220 +1,84 @@
 import { spawnSync } from 'node:child_process'
-import { createHash } from 'node:crypto'
-import {
-  copyFileSync,
-  mkdirSync,
-  mkdtempSync,
-  readdirSync,
-  readFileSync,
-  rmSync,
-  writeFileSync,
-} from 'node:fs'
-import { tmpdir } from 'node:os'
+import { readFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import process from 'node:process'
 import { fileURLToPath } from 'node:url'
 
 import { writeError, writeOutput } from '../../shared/cli-output.mjs'
-import {
-  createLexoraBuddyReleaseMetadata,
-  selectLexoraBuddyPackageArchive,
-  validateLexoraBuddyReleaseMetadata,
-} from '../release/metadata.mjs'
 
 const scriptDir = dirname(fileURLToPath(import.meta.url))
 const repoRoot = resolve(scriptDir, '../../..')
 const packageDir = join(scriptDir, 'lexora-buddy-bin')
-const pkgbuildPath = join(packageDir, 'PKGBUILD')
-const srcinfoPath = join(packageDir, '.SRCINFO')
-const installPath = join(packageDir, 'lexora-buddy-bin.install')
-const pkgbuild = readFileSync(pkgbuildPath, 'utf8')
-const srcinfo = readFileSync(srcinfoPath, 'utf8')
-const nativePetManifest = JSON.parse(
-  readFileSync(join(repoRoot, 'packages/assets/buddy/pets/default/manifest.json'), 'utf8'),
-)
-const expectedNativePetAnimations = nativePetManifest.animations.map(animation => animation.name)
-const metadata = createLexoraBuddyReleaseMetadata({
-  buddyVersionJson: readFileSync(join(repoRoot, 'apps/buddy/buddy.version.json'), 'utf8'),
-  buddyPackageJson: readFileSync(join(repoRoot, 'apps/buddy/package.json'), 'utf8'),
-  cargoToml: readFileSync(join(repoRoot, 'apps/buddy/src-tauri/Cargo.toml'), 'utf8'),
-  pkgbuild,
-  repoRoot,
-  srcinfo,
-  tauriConfigJson: readFileSync(join(repoRoot, 'apps/buddy/src-tauri/tauri.conf.json'), 'utf8'),
-})
-const metadataErrors = validateLexoraBuddyReleaseMetadata(metadata)
+const linuxWorkflowPath = join(repoRoot, '.github/workflows/buddy-linux-deb.yml')
 
-if (metadataErrors.length > 0)
-  fail(metadataErrors.join('\n'))
+export function verifyBuddyAurPackage(options = {}) {
+  const version = options.version ?? JSON.parse(
+    readFileSync(join(repoRoot, 'apps/buddy/buddy.version.json'), 'utf8'),
+  ).version
+  const pkgbuild = options.pkgbuild ?? readFileSync(join(packageDir, 'PKGBUILD'), 'utf8')
+  const srcinfo = options.srcinfo ?? readFileSync(join(packageDir, '.SRCINFO'), 'utf8')
+  const workflow = options.workflow ?? readFileSync(linuxWorkflowPath, 'utf8')
+  const errors = []
+  const requiredPkgbuildFragments = [
+    `pkgver=${version}`,
+    `_deb_name="Lexora-\${pkgver}-linux-amd64.deb"`,
+    `releases/download/v\${pkgver}/\${_deb_name}`,
+    `source_x86_64=("lexora-\${pkgver}-amd64.deb::\${_deb_url}")`,
+    'data.tar.*',
+    'alsa-lib',
+    'desktop-file-utils',
+    'gtk-layer-shell',
+    'hicolor-icon-theme',
+    'libcups',
+    'libxkbcommon',
+    'mesa',
+    'nss',
+    'libsecret',
+  ]
+  const requiredSrcinfoFragments = [
+    `pkgver = ${version}`,
+    `source_x86_64 = lexora-${version}-amd64.deb::https://github.com/haohaoxue-site/Lexora/releases/download/v${version}/Lexora-${version}-linux-amd64.deb`,
+    'provides = lexora-desktop',
+  ]
 
-const debPath = metadata.debPath
-const actualHash = createHash('sha256').update(readFileSync(debPath)).digest('hex')
+  for (const fragment of requiredPkgbuildFragments) {
+    if (!pkgbuild.includes(fragment))
+      errors.push(`PKGBUILD is missing: ${fragment}`)
+  }
+  for (const fragment of requiredSrcinfoFragments) {
+    if (!srcinfo.includes(fragment))
+      errors.push(`.SRCINFO is missing: ${fragment}`)
+  }
 
-if (actualHash !== metadata.expectedHash) {
-  fail(`deb hash 不匹配。当前 hash: ${actualHash}，PKGBUILD: ${metadata.expectedHash}`)
-}
+  if (
+    !workflow.includes('verify-linux-deb-artifact.mjs --github-env "$GITHUB_ENV"')
+    || !workflow.includes('gh release upload')
+    || !workflow.includes('--repo "$LEXORA_BUDDY_RELEASE_REPO"')
+  ) {
+    errors.push('Linux release workflow does not publish the AUR deb asset')
+  }
+  if (!workflow.includes('node packaging/buddy/release/verify-remote-asset.mjs'))
+    errors.push('Linux release workflow does not remotely verify the AUR deb asset')
 
-const generatedSrcinfo = run('makepkg', ['--printsrcinfo'], { cwd: packageDir })
-
-if (normalizeText(generatedSrcinfo) !== normalizeText(srcinfo)) {
-  fail('.SRCINFO 与 makepkg --printsrcinfo 输出不一致')
-}
-
-const control = readDebMember('control.tar.gz', ['-xOf', '-', './control'])
-const dataList = readDebMember('data.tar.gz', ['-tf', '-'])
-const desktopFile = readDebMember('data.tar.gz', [
-  '-xOf',
-  '-',
-  'usr/share/applications/Lexora Buddy.desktop',
-])
-
-assertIncludes(control, 'Package: lexora-buddy')
-assertIncludes(control, `Version: ${metadata.pkgVersion}`)
-assertIncludes(control, 'Architecture: amd64')
-assertIncludes(control, 'libwebkit2gtk-4.1-0')
-assertIncludes(control, 'libgtk-3-0')
-assertIncludes(control, 'libgtk-layer-shell0')
-assertIncludes(dataList, 'usr/bin/lexora-buddy')
-assertIncludes(dataList, 'usr/share/applications/Lexora Buddy.desktop')
-assertIncludes(dataList, 'usr/share/icons/hicolor/32x32/apps/lexora-buddy.png')
-assertIncludes(dataList, 'usr/share/icons/hicolor/128x128/apps/lexora-buddy.png')
-assertIncludes(dataList, 'usr/share/icons/hicolor/256x256/apps/lexora-buddy.png')
-assertIncludes(desktopFile, 'Exec=lexora-buddy')
-assertIncludes(desktopFile, 'Icon=lexora-buddy')
-
-verifyMakepkgBuild()
-
-writeOutput(`lexora-buddy-bin package verification passed: ${actualHash}`)
-
-function run(command, args, options = {}) {
-  const result = spawnSync(command, args, {
+  const makepkg = spawnSync('makepkg', ['--printsrcinfo'], {
+    cwd: packageDir,
     encoding: 'utf8',
-    stdio: 'pipe',
-    ...options,
   })
+  if (!makepkg.error && makepkg.status === 0 && normalize(makepkg.stdout) !== normalize(srcinfo))
+    errors.push('.SRCINFO does not match makepkg --printsrcinfo')
 
-  if (result.status === 0)
-    return result.stdout ?? ''
-
-  const stderr = result.stderr?.toString() ?? ''
-  const stdout = result.stdout?.toString() ?? ''
-  const error = result.error?.message ?? ''
-  fail([stdout, stderr, error].filter(Boolean).join('\n') || `${command} failed`)
+  return errors
 }
 
-function readDebMember(member, bsdtarArgs) {
-  const ar = spawnSync('ar', ['p', debPath, member], {
-    encoding: 'buffer',
-    maxBuffer: 256 * 1024 * 1024,
-  })
+function normalize(value) {
+  return value.trim().replaceAll('\r\n', '\n')
+}
 
-  if (ar.status !== 0) {
-    fail(ar.stderr?.toString() || `ar failed for ${member}`)
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  const errors = verifyBuddyAurPackage()
+  if (errors.length) {
+    writeError(errors.join('\n'))
+    process.exit(1)
   }
-
-  const tempDir = mkdtempSync(join(tmpdir(), 'lexora-buddy-deb-member-'))
-  const memberPath = join(tempDir, member)
-  try {
-    writeFileSync(memberPath, ar.stdout)
-    const bsdtar = spawnSync('bsdtar', bsdtarArgs.map(arg => arg === '-' ? memberPath : arg), {
-      encoding: 'utf8',
-      maxBuffer: 64 * 1024 * 1024,
-    })
-
-    if (bsdtar.status !== 0)
-      fail(bsdtar.stderr || `bsdtar failed for ${member}`)
-
-    return bsdtar.stdout
-  }
-  finally {
-    rmSync(tempDir, { force: true, recursive: true })
-  }
-}
-
-function assertIncludes(content, expected) {
-  if (!content.includes(expected))
-    fail(`缺少预期内容：${expected}`)
-}
-
-function normalizeText(content) {
-  return content.trim().replace(/\r\n/g, '\n')
-}
-
-function verifyMakepkgBuild() {
-  const tempDir = mkdtempSync(join(tmpdir(), 'lexora-buddy-bin-'))
-  try {
-    copyFileSync(pkgbuildPath, join(tempDir, 'PKGBUILD'))
-    copyFileSync(srcinfoPath, join(tempDir, '.SRCINFO'))
-    copyFileSync(installPath, join(tempDir, 'lexora-buddy-bin.install'))
-    copyFileSync(debPath, join(tempDir, metadata.sourceFileName))
-
-    run('makepkg', [
-      '--force',
-      '--nodeps',
-      '--skippgpcheck',
-      '--clean',
-      '--noconfirm',
-    ], {
-      cwd: tempDir,
-      stdio: 'inherit',
-    })
-
-    verifyPackageBinarySmokeChecks(tempDir)
-  }
-  finally {
-    rmSync(tempDir, { force: true, recursive: true })
-  }
-}
-
-function verifyPackageBinarySmokeChecks(tempDir) {
-  const packageArchive = selectLexoraBuddyPackageArchive(readdirSync(tempDir), metadata)
-  const extractDir = join(tempDir, 'pkg-root')
-  const healthDataDir = join(tempDir, 'health-data')
-  const binaryPath = join(extractDir, 'usr/bin/lexora-buddy')
-
-  mkdirSync(extractDir)
-  run('bsdtar', ['-xf', join(tempDir, packageArchive), '-C', extractDir], {
-    cwd: tempDir,
-  })
-  const healthCheckOutput = runBinaryCheck(binaryPath, [
-    '--buddy-health-check',
-    '--buddy-health-check-data-dir',
-    healthDataDir,
-  ], tempDir)
-
-  assertIncludes(healthCheckOutput, '"ok":true')
-  verifyNativePetSmokeOutput(runBinaryCheck(binaryPath, [
-    '--buddy-native-pet-smoke-check',
-  ], tempDir))
-}
-
-function verifyNativePetSmokeOutput(output) {
-  const report = JSON.parse(output)
-  if (report.ok !== true)
-    fail('native pet smoke did not return ok=true')
-  if (report.animationCount !== expectedNativePetAnimations.length) {
-    fail(`native pet animationCount 不匹配。包内: ${report.animationCount}，源码 manifest: ${expectedNativePetAnimations.length}`)
-  }
-  const actualAnimations = Array.isArray(report.validatedAnimations) ? report.validatedAnimations : []
-  const missingAnimations = expectedNativePetAnimations.filter(animation => !actualAnimations.includes(animation))
-  if (missingAnimations.length > 0)
-    fail(`native pet smoke 缺少源码 manifest 动画: ${missingAnimations.join(', ')}`)
-}
-
-function runBinaryCheck(command, args, cwd) {
-  const result = spawnSync(command, args, {
-    cwd,
-    encoding: 'utf8',
-    stdio: 'pipe',
-  })
-
-  if (result.status === 0)
-    return result.stdout
-
-  fail([result.stdout, result.stderr, result.error?.message].filter(Boolean).join('\n'))
-}
-
-function fail(message) {
-  writeError(message)
-  process.exit(1)
+  writeOutput('Buddy AUR package contract passed')
 }

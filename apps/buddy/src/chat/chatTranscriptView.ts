@@ -6,8 +6,8 @@ import type {
   BuddyChatRunActivityKind,
   BuddyChatRunActivityRow,
 } from '@/chat/chatTranscriptEventView'
+import type { BuddyChatRunEvent, BuddyMessage } from '@/desktop/localChatTypes'
 import type { BuddyTranslate } from '@/i18n/buddyI18n'
-import type { BuddyChatRunEvent, BuddyMessage } from '@/lib/tauriRuntime'
 import { createChatMessageViewRows } from '@/chat/chatMessageView'
 import {
   createChatRunActivityRows,

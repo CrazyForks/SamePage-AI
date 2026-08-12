@@ -1,0 +1,74 @@
+import type { Plugin } from 'vite'
+import { readFileSync } from 'node:fs'
+import { fileURLToPath, URL } from 'node:url'
+import vue from '@vitejs/plugin-vue'
+import { defineConfig, externalizeDepsPlugin } from 'electron-vite'
+import UnoCSS from 'unocss/vite'
+
+const PRODUCTION_CONNECT_SRC = 'connect-src \'self\';'
+const DEVELOPMENT_CONNECT_SRC
+  = 'connect-src \'self\' ws://localhost:* ws://127.0.0.1:*;'
+
+function allowDevelopmentWebSockets(): Plugin {
+  return {
+    name: 'lexora-buddy-development-csp',
+    apply: 'serve',
+    transformIndexHtml(html) {
+      return html.replace(PRODUCTION_CONNECT_SRC, DEVELOPMENT_CONNECT_SRC)
+    },
+  }
+}
+
+const buddyVersion = JSON.parse(
+  readFileSync(new URL('./buddy.version.json', import.meta.url), 'utf8'),
+) as { version?: string }
+
+export default defineConfig({
+  main: {
+    plugins: [externalizeDepsPlugin()],
+    build: {
+      rollupOptions: {
+        external: ['electron'],
+        input: fileURLToPath(new URL('./electron/main/index.ts', import.meta.url)),
+      },
+    },
+  },
+  preload: {
+    plugins: [externalizeDepsPlugin()],
+    build: {
+      rollupOptions: {
+        external: ['electron'],
+        input: fileURLToPath(new URL('./electron/preload/index.ts', import.meta.url)),
+        output: {
+          format: 'cjs',
+        },
+      },
+    },
+  },
+  renderer: {
+    root: fileURLToPath(new URL('.', import.meta.url)),
+    define: {
+      __LEXORA_BUDDY_VERSION__: JSON.stringify(buddyVersion.version ?? ''),
+    },
+    plugins: [
+      allowDevelopmentWebSockets(),
+      vue(),
+      UnoCSS(),
+    ],
+    resolve: {
+      alias: {
+        '@': fileURLToPath(new URL('./src', import.meta.url)),
+      },
+    },
+    server: {
+      port: 1420,
+      strictPort: true,
+    },
+    build: {
+      target: 'esnext',
+      rollupOptions: {
+        input: fileURLToPath(new URL('./index.html', import.meta.url)),
+      },
+    },
+  },
+})

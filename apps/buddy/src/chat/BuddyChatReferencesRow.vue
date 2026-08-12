@@ -1,8 +1,7 @@
 <script setup lang="ts">
 import type { BuddyChatTranscriptReferencesRow } from '@/chat/chatTranscriptView'
-import { ChevronDown16Regular, ChevronRight16Regular } from '@vicons/fluent'
-import { NIcon } from 'naive-ui'
-import { computed, shallowRef } from 'vue'
+import { shallowRef } from 'vue'
+import BuddyDisclosureIcon from '@/chat/BuddyDisclosureIcon.vue'
 
 const props = defineProps<{
   row: BuddyChatTranscriptReferencesRow
@@ -10,10 +9,6 @@ const props = defineProps<{
 
 const referencesOpen = shallowRef(props.row.defaultOpen)
 const expandedItemKeys = shallowRef<ReadonlySet<string>>(new Set())
-
-const referencesToggleIcon = computed(() =>
-  referencesOpen.value ? ChevronDown16Regular : ChevronRight16Regular,
-)
 
 function handleReferencesToggle(event: Event) {
   const target = event.currentTarget
@@ -51,10 +46,9 @@ function toggleItemDetail(key: string) {
           {{ row.title }}
           <span class="buddy-chat-references__summary-count"> · {{ row.summaryLabel }}</span>
         </span>
-        <NIcon
-          aria-hidden="true"
+        <BuddyDisclosureIcon
           class="buddy-chat-references__toggle"
-          :component="referencesToggleIcon"
+          :open="referencesOpen"
         />
       </summary>
 
@@ -72,10 +66,9 @@ function toggleItemDetail(key: string) {
             @click="toggleItemDetail(item.key)"
           >
             <span class="buddy-chat-references__item-label">{{ item.label }}</span>
-            <NIcon
-              aria-hidden="true"
+            <BuddyDisclosureIcon
               class="buddy-chat-references__item-toggle"
-              :component="isItemExpanded(item.key) ? ChevronDown16Regular : ChevronRight16Regular"
+              :open="isItemExpanded(item.key)"
             />
           </button>
           <span

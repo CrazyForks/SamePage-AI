@@ -1,112 +1,130 @@
-import { execFileSync, spawnSync } from 'node:child_process'
-import { mkdtempSync, rmSync } from 'node:fs'
+import { spawn } from 'node:child_process'
+import { mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { dirname, resolve } from 'node:path'
+import { join, resolve } from 'node:path'
 import process from 'node:process'
-import { fileURLToPath } from 'node:url'
 
-import { writeOutput } from '../../shared/cli-output.mjs'
+import { writeError, writeOutput } from '../../shared/cli-output.mjs'
 
-const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../../..')
-
-export function createBuddyGuiSmokePlan(options) {
-  const xvfbRunPath = options.xvfbRunPath
-  const required = options.required ?? false
-
-  if (!xvfbRunPath) {
-    const reason = 'xvfb-run is not available; GUI smoke was skipped to avoid using the real desktop display'
-
-    if (required)
-      throw new Error(`xvfb-run is required for Buddy GUI smoke: ${reason}`)
-
-    return {
-      reason,
-      status: 'skipped',
-    }
+const repoRoot = resolve(import.meta.dirname, '../../..')
+const guiRunner = process.env.LEXORA_GUI_SMOKE_RUNNER ?? 'xvfb-run'
+async function main() {
+  const desktopPath = resolve(
+    process.env.LEXORA_DESKTOP_EXECUTABLE_PATH
+    ?? resolve(repoRoot, 'apps/buddy/dist-packages/linux-unpacked/lexora'),
+  )
+  const binaryPath = resolve(
+    process.env.LEXORA_BUDDY_PET_PATH
+    ?? resolve(repoRoot, 'apps/buddy/runtime/target/release/lexora-buddy-pet'),
+  )
+  const smokeRoot = mkdtempSync(join(tmpdir(), 'lexora-desktop-smoke-'))
+  const smokeEnv = {
+    ...process.env,
+    LEXORA_BUDDY_PET_SOCKET: join(smokeRoot, 'native-pet.sock'),
+    LEXORA_HOME: join(smokeRoot, 'home'),
   }
 
-  return {
-    args: [
-      '--auto-servernum',
-      '--server-args=-screen 0 1280x800x24',
-      options.binaryPath,
-      '--buddy-window-smoke-check',
-      '--buddy-window-smoke-check-data-dir',
-      options.smokeDataDir,
-    ],
-    command: xvfbRunPath,
-    status: 'run',
-  }
+  await runDesktopSmoke(desktopPath, smokeEnv)
+  await runNativePetSmoke(binaryPath, 12_000, smokeEnv)
+  writeOutput('Lexora Desktop and standalone pet GUI smoke passed')
 }
 
-export function runBuddyGuiSmokeCheck(options = {}) {
-  const required = options.required ?? process.argv.includes('--required')
-  const binaryPath = options.binaryPath ?? resolve(
-    repoRoot,
-    'apps/buddy/src-tauri/target/release/lexora-buddy',
-  )
-  const shouldCleanupSmokeDataDir = !options.smokeDataDir
-  const smokeDataDir = options.smokeDataDir ?? mkdtempSync(
-    resolve(tmpdir(), 'lexora-buddy-gui-smoke-'),
-  )
-  const xvfbRunPath = options.xvfbRunPath ?? findExecutable('xvfb-run')
+export function runDesktopSmoke(executablePath, env, timeoutMs = 30_000) {
+  return new Promise((resolveSmoke, rejectSmoke) => {
+    const child = spawnGui(executablePath, {
+      ...env,
+      LEXORA_DESKTOP_SMOKE_TEST: '1',
+    })
+    let stderr = ''
+    const timeout = setTimeout(() => {
+      child.kill('SIGKILL')
+      rejectSmoke(new Error(`Desktop smoke did not exit within ${timeoutMs}ms`))
+    }, timeoutMs)
 
-  try {
-    const plan = createBuddyGuiSmokePlan({
-      binaryPath,
-      required,
-      smokeDataDir,
-      xvfbRunPath,
+    child.stderr.setEncoding('utf8')
+    child.stderr.on('data', (chunk) => {
+      stderr = `${stderr}${chunk}`.slice(-8_192)
+    })
+    child.on('error', (error) => {
+      clearTimeout(timeout)
+      rejectSmoke(error)
+    })
+    child.on('exit', (code, signal) => {
+      clearTimeout(timeout)
+      if (code === 0) {
+        resolveSmoke()
+        return
+      }
+
+      rejectSmoke(new Error(`Desktop smoke failed: ${signal ?? code}; ${stderr.trim()}`))
+    })
+  })
+}
+
+export function runNativePetSmoke(runtimePath, timeoutMs = 12_000, env = process.env) {
+  return new Promise((resolveSmoke, rejectSmoke) => {
+    const child = spawnGui(runtimePath, env, ['--native-pet'])
+    let settled = false
+    let ready = false
+    let stdout = ''
+    let stderr = ''
+    const timeout = setTimeout(() => {
+      finish(new Error(`native pet did not become ready within ${timeoutMs}ms`))
+    }, timeoutMs)
+
+    child.stdout.setEncoding('utf8')
+    child.stderr.setEncoding('utf8')
+    child.stdout.on('data', (chunk) => {
+      stdout = `${stdout}${chunk}`.slice(-8_192)
+      if (stdout.includes('event:ready') && !ready) {
+        ready = true
+        child.kill('SIGTERM')
+      }
+    })
+    child.stderr.on('data', (chunk) => {
+      stderr = `${stderr}${chunk}`.slice(-2_048)
+    })
+    child.on('error', finish)
+    child.on('exit', (code, signal) => {
+      if (!settled) {
+        finish(ready
+          ? undefined
+          : new Error(`native pet exited before ready: ${signal ?? code}; ${stderr.trim()}`))
+      }
     })
 
-    if (plan.status === 'skipped') {
-      writeOutput(plan.reason)
-      return plan
+    function finish(error) {
+      if (settled)
+        return
+
+      settled = true
+      clearTimeout(timeout)
+      if (!ready)
+        child.kill('SIGTERM')
+      if (error)
+        rejectSmoke(error)
+      else
+        resolveSmoke()
     }
-
-    const output = execFileSync(plan.command, plan.args, {
-      cwd: repoRoot,
-      encoding: 'utf8',
-      env: options.env ?? process.env,
-    })
-    const report = parseBuddyGuiSmokeReport(output)
-
-    if (!report.ok)
-      throw new Error('Buddy GUI smoke did not report ok=true')
-
-    writeOutput(`Buddy GUI smoke passed: window=${report.windowLabel}`)
-
-    return {
-      ...plan,
-      report,
-    }
-  }
-  finally {
-    if (shouldCleanupSmokeDataDir)
-      rmSync(smokeDataDir, { force: true, recursive: true })
-  }
+  })
 }
 
-export function parseBuddyGuiSmokeReport(output) {
-  const jsonLine = output
-    .split('\n')
-    .map(line => line.trim())
-    .find(line => line.startsWith('{') && line.endsWith('}'))
+function spawnGui(executablePath, env, args = []) {
+  const command = guiRunner === 'direct' ? executablePath : guiRunner
+  const commandArgs = guiRunner === 'direct'
+    ? args
+    : ['-a', executablePath, ...args]
 
-  if (!jsonLine)
-    throw new Error('Buddy GUI smoke did not produce a JSON report')
-
-  return JSON.parse(jsonLine)
+  return spawn(command, commandArgs, {
+    cwd: repoRoot,
+    env,
+    stdio: ['ignore', 'pipe', 'pipe'],
+  })
 }
 
-function findExecutable(name) {
-  const result = spawnSync('which', [name], { encoding: 'utf8' })
-
-  if (result.status !== 0)
-    return null
-
-  return result.stdout.trim() || null
+if (process.argv[1] && resolve(process.argv[1]) === new URL(import.meta.url).pathname) {
+  void main().catch((error) => {
+    writeError(error instanceof Error ? error.message : String(error))
+    process.exitCode = 1
+  })
 }
-
-if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url))
-  runBuddyGuiSmokeCheck()

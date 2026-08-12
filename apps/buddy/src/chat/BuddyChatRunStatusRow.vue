@@ -1,8 +1,6 @@
 <script setup lang="ts">
 import type { BuddyChatTranscriptRunRow } from '@/chat/chatTranscriptView'
-import { ChevronDown16Regular, ChevronRight16Regular } from '@vicons/fluent'
-import { NIcon } from 'naive-ui'
-import { computed } from 'vue'
+import BuddyDisclosureIcon from '@/chat/BuddyDisclosureIcon.vue'
 
 const props = defineProps<{
   canToggleProcess: boolean
@@ -13,10 +11,6 @@ const props = defineProps<{
 const emit = defineEmits<{
   toggleProcess: [runId: string]
 }>()
-
-const processToggleIcon = computed(() =>
-  props.isProcessCollapsed ? ChevronRight16Regular : ChevronDown16Regular,
-)
 
 function toggleProcess() {
   emit('toggleProcess', props.row.runId)
@@ -38,7 +32,7 @@ function toggleProcess() {
           :aria-expanded="!isProcessCollapsed"
           @click="toggleProcess"
         >
-          <NIcon :component="processToggleIcon" />
+          <BuddyDisclosureIcon :open="!isProcessCollapsed" />
         </button>
       </span>
       <span
@@ -109,7 +103,7 @@ function toggleProcess() {
   outline-offset: 2px;
 }
 
-.buddy-chat-run-status__toggle :deep(.n-icon) {
+.buddy-chat-run-status__toggle :deep(svg) {
   font-size: 16px;
   line-height: 1;
 }

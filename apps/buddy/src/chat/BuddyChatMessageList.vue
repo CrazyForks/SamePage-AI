@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { ComponentPublicInstance } from 'vue'
+import type { BuddyChatRunEvent, BuddyMessage } from '@/desktop/localChatTypes'
 import type { BuddyLocale } from '@/i18n/buddyI18n'
-import type { BuddyChatRunEvent, BuddyMessage } from '@/lib/tauriRuntime'
 import { computed, shallowRef, useTemplateRef, watch } from 'vue'
 import BuddyChatActivityRow from '@/chat/BuddyChatActivityRow.vue'
 import BuddyChatMessageRow from '@/chat/BuddyChatMessageRow.vue'

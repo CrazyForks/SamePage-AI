@@ -1,9 +1,8 @@
 <script setup lang="ts">
 import type { BuddyChatTranscriptActivityRow } from '@/chat/chatTranscriptView'
 import type { BuddyLocale } from '@/i18n/buddyI18n'
-import { ChevronDown16Regular, ChevronRight16Regular } from '@vicons/fluent'
-import { NIcon } from 'naive-ui'
 import { computed, shallowRef, watch } from 'vue'
+import BuddyDisclosureIcon from '@/chat/BuddyDisclosureIcon.vue'
 import { useBuddyI18n } from '@/i18n/buddyI18n'
 
 const props = defineProps<{
@@ -15,10 +14,6 @@ const { t } = useBuddyI18n(() => props.language)
 const isActivityOpen = shallowRef(props.row.status !== 'completed')
 const isOutputOpen = shallowRef(false)
 
-const activityToggleIcon = computed(() =>
-  isActivityOpen.value ? ChevronDown16Regular : ChevronRight16Regular,
-)
-
 const activityTitle = computed(() => {
   if (props.row.status !== 'completed')
     return `${props.row.label}·${resolveActivityStatusLabel(props.row.status)}`
@@ -28,10 +23,6 @@ const activityTitle = computed(() => {
 
   return props.row.label
 })
-
-const outputToggleIcon = computed(() =>
-  isOutputOpen.value ? ChevronDown16Regular : ChevronRight16Regular,
-)
 
 watch(() => props.row.status, (status) => {
   isActivityOpen.value = status !== 'completed'
@@ -79,10 +70,9 @@ function handleOutputToggle(event: Event) {
     >
       <summary class="buddy-chat-activity__summary">
         <span class="buddy-chat-activity__title">{{ activityTitle }}</span>
-        <NIcon
-          aria-hidden="true"
+        <BuddyDisclosureIcon
           class="buddy-chat-activity__toggle"
-          :component="activityToggleIcon"
+          :open="isActivityOpen"
         />
       </summary>
 
@@ -96,10 +86,9 @@ function handleOutputToggle(event: Event) {
         >
           <summary class="buddy-chat-activity__output-summary">
             <span class="buddy-chat-activity__output-title">{{ t('tool.output') }}</span>
-            <NIcon
-              aria-hidden="true"
+            <BuddyDisclosureIcon
               class="buddy-chat-activity__toggle buddy-chat-activity__output-toggle"
-              :component="outputToggleIcon"
+              :open="isOutputOpen"
             />
           </summary>
           <template v-if="isOutputOpen">

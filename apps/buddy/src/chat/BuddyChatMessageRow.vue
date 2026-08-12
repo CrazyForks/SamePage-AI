@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { BuddyChatTranscriptMessageRow } from '@/chat/chatTranscriptView'
-import type { BuddyMessageAttachment } from '@/lib/tauriRuntime'
+import type { BuddyMessageAttachment } from '@/desktop/localChatTypes'
 import { resolveBuddyAttachmentPreviewUrl } from '@/chat/chatAttachmentView'
 
 defineProps<{
@@ -268,7 +268,7 @@ function formatAttachmentSize(sizeBytes: number) {
   gap: 7px;
   border: 1px solid color-mix(in srgb, var(--buddy-border-light) 86%, var(--buddy-accent-primary));
   border-radius: 8px;
-  background: rgb(255 255 255 / 78%);
+  background: color-mix(in srgb, var(--buddy-bg-surface-raised) 78%, transparent);
   box-shadow: 0 10px 24px rgb(36 54 45 / 8%);
   padding: 7px;
 }

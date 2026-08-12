@@ -3,21 +3,40 @@
   "type": "module",
   "version": "0.1.0",
   "private": true,
+  "packageManager": "pnpm@11.5.0",
+  "description": "Lexora Desktop with a local Codex runtime and desktop pet",
+  "desktopName": "lexora-buddy",
+  "author": {
+    "name": "shanyuhai123",
+    "email": "864299347@qq.com"
+  },
+  "license": "AGPL-3.0-only",
+  "homepage": "https://github.com/haohaoxue-site/Lexora",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/haohaoxue-site/Lexora.git",
+    "directory": "apps/buddy"
+  },
+  "bugs": {
+    "url": "https://github.com/haohaoxue-site/Lexora/issues"
+  },
+  "main": "./out/main/index.js",
   "scripts": {
-    "predev": "node ../../packaging/buddy/dev/install-desktop-identity.mjs",
-    "dev": "tauri dev",
-    "dev:desktop-identity": "node ../../packaging/buddy/dev/install-desktop-identity.mjs",
-    "dev:web": "vite --host 127.0.0.1",
-    "build": "vue-tsc -b --pretty false && vite build",
-    "build:desktop": "tauri build",
+    "predev": "pnpm build:runtime",
+    "dev": "electron-vite dev",
+    "build": "pnpm build:electron",
+    "build:electron": "pnpm build:runtime:release && vue-tsc -b --pretty false && electron-vite build",
+    "build:runtime": "cargo build --manifest-path runtime/Cargo.toml --bin lexora-buddy-runtime && cargo build --manifest-path runtime/Cargo.toml --no-default-features --features pet --bin lexora-buddy-pet",
+    "build:runtime:release": "cargo build --release --manifest-path runtime/Cargo.toml --bin lexora-buddy-runtime && cargo build --release --manifest-path runtime/Cargo.toml --no-default-features --features pet --bin lexora-buddy-pet",
+    "package:full": "pnpm build:electron && pnpm verify:pet-boundary && electron-builder --config electron-builder.config.cjs --linux deb && node ../../packaging/buddy/release/verify-deb-dependencies.mjs",
+    "package:pet": "pnpm build:runtime:release && node ../../packaging/buddy/release/package-pet.mjs",
+    "verify:pet-boundary": "node ../../packaging/buddy/release/verify-pet-binary-boundary.mjs",
     "lint:fix": "eslint . --fix",
     "type-check": "vue-tsc -b --pretty false",
     "test": "vitest run --passWithNoTests",
-    "test:watch": "vitest --passWithNoTests",
-    "tauri": "tauri"
+    "test:watch": "vitest --passWithNoTests"
   },
   "dependencies": {
-    "@tauri-apps/api": "^2.0.0",
     "@tiptap/core": "^3.22.3",
     "@tiptap/extension-placeholder": "^3.22.3",
     "@tiptap/pm": "^3.22.3",
@@ -27,13 +46,17 @@
     "dompurify": "^3.4.7",
     "marked": "^18.0.5",
     "naive-ui": "^2.44.1",
-    "vue": "^3.5.33"
+    "smol-toml": "^1.7.1",
+    "vue": "^3.5.33",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
-    "@tauri-apps/cli": "^2.0.0",
     "@types/node": "catalog:",
     "@vitejs/plugin-vue": "^6.0.6",
     "@vue/tsconfig": "^0.9.1",
+    "electron": "^43.2.0",
+    "electron-builder": "^26.15.3",
+    "electron-vite": "^5.0.0",
     "sass-embedded": "^1.99.0",
     "typescript": "catalog:",
     "unocss": "^66.6.8",

@@ -7,8 +7,9 @@ export default antfu({
   vue: true,
 }, {
   ignores: [
-    '**/src-tauri/gen/schemas/**',
-    '**/src-tauri/target/**',
+    '**/runtime/target/**',
+    '**/dist-packages/**',
+    '**/out/**',
   ],
 }, {
   files: ['apps/api/src/**/*.ts'],

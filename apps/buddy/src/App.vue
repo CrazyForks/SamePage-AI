@@ -1,29 +1,53 @@
 <script setup lang="ts">
 import type { GlobalThemeOverrides } from 'naive-ui'
-import { NConfigProvider } from 'naive-ui'
-import { defineAsyncComponent } from 'vue'
-import { createBuddyShellSurfacePlan, resolveBuddyShellSurface } from '@/shell/buddyShellSurface'
+import { darkTheme, NConfigProvider } from 'naive-ui'
+import { computed, onBeforeUnmount, onMounted, shallowRef } from 'vue'
+import DesktopShell from '@/desktop/DesktopShell.vue'
 
-const BuddyChatShell = defineAsyncComponent(() => import('@/shell/BuddyChatShell.vue'))
-const BuddyControlShell = defineAsyncComponent(() => import('@/shell/BuddyControlShell.vue'))
-const surfacePlan = createBuddyShellSurfacePlan(resolveBuddyShellSurface(window.location.pathname))
+type DesktopThemePreference = 'system' | 'light' | 'dark'
 
-const themeOverrides: GlobalThemeOverrides = {
+const systemPrefersDark = shallowRef(false)
+const themePreference = shallowRef<DesktopThemePreference>('system')
+const prefersDark = computed(() =>
+  themePreference.value === 'dark'
+  || (themePreference.value === 'system' && systemPrefersDark.value),
+)
+const themeOverrides = computed<GlobalThemeOverrides>(() => ({
   common: {
-    borderRadius: '8px',
-    borderRadiusSmall: '6px',
-    fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "PingFang SC", "Microsoft YaHei", "Noto Sans CJK SC", "Source Han Sans SC", "Noto Sans", sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji"',
-    primaryColor: '#347f69',
-    primaryColorHover: '#3b8e76',
-    primaryColorPressed: '#2b6b58',
-    primaryColorSuppl: '#3b8e76',
+    borderRadius: '10px',
+    borderRadiusSmall: '7px',
+    fontFamily: '"Noto Sans CJK SC", "Source Han Sans SC", "Microsoft YaHei", system-ui, sans-serif',
+    fontFamilyMono: '"JetBrains Mono", "SFMono-Regular", Consolas, monospace',
+    primaryColor: prefersDark.value ? '#55a98e' : '#2f7d66',
+    primaryColorHover: prefersDark.value ? '#68b99f' : '#3d8f76',
+    primaryColorPressed: prefersDark.value ? '#428d75' : '#276b58',
+    primaryColorSuppl: prefersDark.value ? '#68b99f' : '#3d8f76',
   },
+}))
+
+let colorScheme: MediaQueryList | null = null
+
+function syncColorScheme(event: Pick<MediaQueryListEvent, 'matches'> | MediaQueryList) {
+  systemPrefersDark.value = event.matches
 }
+
+onMounted(() => {
+  colorScheme = window.matchMedia('(prefers-color-scheme: dark)')
+  syncColorScheme(colorScheme)
+  colorScheme.addEventListener('change', syncColorScheme)
+})
+
+onBeforeUnmount(() => {
+  colorScheme?.removeEventListener('change', syncColorScheme)
+  colorScheme = null
+})
 </script>
 
 <template>
-  <NConfigProvider :theme-overrides="themeOverrides">
-    <BuddyChatShell v-if="surfacePlan.mountsChatRuntime" />
-    <BuddyControlShell v-else-if="surfacePlan.mountsControlRuntime" />
+  <NConfigProvider
+    :theme="prefersDark ? darkTheme : null"
+    :theme-overrides="themeOverrides"
+  >
+    <DesktopShell @theme-change="themePreference = $event" />
   </NConfigProvider>
 </template>

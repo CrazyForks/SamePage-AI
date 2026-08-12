@@ -1,6 +1,6 @@
 :root {
   color-scheme: light;
-  font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "PingFang SC", "Microsoft YaHei", "Noto Sans CJK SC", "Source Han Sans SC", "Noto Sans", sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+  font-family: "Noto Sans CJK SC", "Source Han Sans SC", "Microsoft YaHei", system-ui, sans-serif;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
@@ -20,6 +20,8 @@
   --buddy-text-placeholder: #8b9891;
   --buddy-text-on-accent: #ffffff;
   --buddy-accent-primary: #2f7d66;
+  --buddy-accent-primary-hover: #3d8f76;
+  --buddy-accent-primary-pressed: #276b58;
   --buddy-accent-success: #2f9d6a;
   --buddy-accent-warning: #d68b32;
   --buddy-accent-danger: #c85252;
@@ -54,6 +56,35 @@
     inset 0 0 0 1px rgb(255 255 255 / 72%),
     inset 0 -1px 0 rgb(36 54 45 / 8%),
     0 18px 48px rgb(23 33 28 / 12%);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+    --buddy-bg-body: #111713;
+    --buddy-bg-surface: #171f1a;
+    --buddy-bg-surface-raised: #1d2721;
+    --buddy-fill-base: #26332b;
+    --buddy-fill-light: #202b24;
+    --buddy-border-base: #425348;
+    --buddy-border-light: #324139;
+    --buddy-window-border: #52645a;
+    --buddy-text-primary: #edf4ef;
+    --buddy-text-regular: #d2ddd6;
+    --buddy-text-secondary: #9baaa1;
+    --buddy-text-placeholder: #78877f;
+    --buddy-accent-primary: #55a98e;
+    --buddy-accent-primary-hover: #68b99f;
+    --buddy-accent-primary-pressed: #428d75;
+    --buddy-accent-success: #50b77d;
+    --buddy-accent-warning: #e1a257;
+    --buddy-accent-danger: #dd7272;
+    --buddy-shadow-raised: 0 18px 48px rgb(0 0 0 / 34%);
+    --buddy-shadow-window:
+      inset 0 0 0 1px rgb(255 255 255 / 5%),
+      inset 0 -1px 0 rgb(0 0 0 / 24%),
+      0 18px 48px rgb(0 0 0 / 32%);
+  }
 }
 
 * {

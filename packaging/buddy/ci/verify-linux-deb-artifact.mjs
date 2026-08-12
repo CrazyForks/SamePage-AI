@@ -1,88 +1,85 @@
 import { createHash } from 'node:crypto'
-import { appendFileSync, readFileSync } from 'node:fs'
-import { dirname, join, resolve } from 'node:path'
+import { appendFileSync, existsSync, readFileSync } from 'node:fs'
+import { join, resolve } from 'node:path'
 import process from 'node:process'
-import { fileURLToPath } from 'node:url'
 
-import { writeError, writeOutput } from '../../shared/cli-output.mjs'
-import {
-  createLexoraBuddyReleaseMetadata,
-  validateLexoraBuddyReleaseMetadata,
-} from '../release/metadata.mjs'
+import { writeOutput } from '../../shared/cli-output.mjs'
 
-const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../../..')
+const repoRoot = resolve(import.meta.dirname, '../../..')
 
-export function verifyLocalLexoraBuddyDebAsset(options = {}) {
-  const cwd = options.cwd ?? repoRoot
-  const metadata = createLexoraBuddyReleaseMetadata({
-    buddyVersionJson: readFileSync(join(cwd, 'apps/buddy/buddy.version.json'), 'utf8'),
-    buddyPackageJson: readFileSync(join(cwd, 'apps/buddy/package.json'), 'utf8'),
-    cargoToml: readFileSync(join(cwd, 'apps/buddy/src-tauri/Cargo.toml'), 'utf8'),
-    pkgbuild: readFileSync(join(cwd, 'packaging/buddy/aur/lexora-buddy-bin/PKGBUILD'), 'utf8'),
-    repoRoot: cwd,
-    srcinfo: readFileSync(join(cwd, 'packaging/buddy/aur/lexora-buddy-bin/.SRCINFO'), 'utf8'),
-    tauriConfigJson: readFileSync(join(cwd, 'apps/buddy/src-tauri/tauri.conf.json'), 'utf8'),
-  })
-  const metadataErrors = validateLexoraBuddyReleaseMetadata(metadata)
+export function readBuddyDebReleaseMetadata(cwd = repoRoot) {
+  const version = String(JSON.parse(
+    readFileSync(join(cwd, 'apps/buddy/buddy.version.json'), 'utf8'),
+  ).version)
+  const pkgbuild = readFileSync(
+    join(cwd, 'packaging/buddy/aur/lexora-buddy-bin/PKGBUILD'),
+    'utf8',
+  )
+  const releaseUrl = readQuotedAssignment(pkgbuild, 'url')
+  const expectedHash = pkgbuild.match(
+    /^_deb_sha256="\$\{LEXORA_BUDDY_DEB_SHA256:-([a-f\d]{64})\}"$/m,
+  )?.[1]
+  if (!releaseUrl || !expectedHash)
+    throw new Error('AUR PKGBUILD is missing the release URL or deb sha256')
 
-  if (metadataErrors.length > 0)
-    throw new Error(metadataErrors.join('\n'))
+  const releaseAssetName = `Lexora-${version}-linux-amd64.deb`
+  const sourceUrl = `${releaseUrl}/releases/download/v${version}/${releaseAssetName}`
+  const releaseRepo = new URL(releaseUrl).pathname.replace(/^\//, '')
 
-  const debBytes = readFileSync(metadata.debPath)
-  const actualHash = createHash('sha256').update(debBytes).digest('hex')
+  return {
+    debPath: join(cwd, 'apps/buddy/dist-packages', releaseAssetName),
+    expectedHash,
+    releaseAssetName,
+    releaseRepo,
+    releaseTag: `v${version}`,
+    sourceUrl,
+  }
+}
 
-  if (actualHash !== metadata.expectedHash) {
+export function verifyBuddyDebArtifact(options = {}) {
+  const metadata = readBuddyDebReleaseMetadata(options.cwd)
+  const debPath = options.debPath ?? metadata.debPath
+  if (!existsSync(debPath))
+    throw new Error(`Buddy deb artifact does not exist: ${debPath}`)
+
+  const hash = createHash('sha256').update(readFileSync(debPath)).digest('hex')
+  if (hash !== metadata.expectedHash) {
     throw new Error(
-      `local deb hash does not match PKGBUILD: ${actualHash} !== ${metadata.expectedHash}`,
+      `Buddy deb sha256 does not match AUR PKGBUILD: expected ${metadata.expectedHash}, received ${hash}`,
     )
   }
 
-  return {
-    debPath: metadata.debPath,
-    hash: actualHash,
-    releaseAssetName: metadata.releaseAssetName,
-    releaseRepo: metadata.releaseRepo,
-    releaseTag: metadata.releaseTag,
-    sourceUrl: metadata.sourceUrl,
+  return { ...metadata, debPath, hash }
+}
+
+export function writeBuddyDebGithubEnv(path, metadata) {
+  const entries = {
+    LEXORA_BUDDY_DEB_PATH: metadata.debPath,
+    LEXORA_BUDDY_DEB_SHA256: metadata.hash,
+    LEXORA_BUDDY_RELEASE_ASSET_NAME: metadata.releaseAssetName,
+    LEXORA_BUDDY_RELEASE_REPO: metadata.releaseRepo,
+    LEXORA_BUDDY_RELEASE_SOURCE_URL: metadata.sourceUrl,
+    LEXORA_BUDDY_RELEASE_TAG: metadata.releaseTag,
+  }
+  for (const [key, value] of Object.entries(entries)) {
+    if (value.includes('\n') || value.includes('\r'))
+      throw new Error(`invalid newline in GitHub environment value: ${key}`)
+    appendFileSync(path, `${key}=${value}\n`)
   }
 }
 
-export function writeBuddyDebGithubEnv(envPath, result) {
-  appendFileSync(envPath, [
-    `LEXORA_BUDDY_DEB_PATH=${result.debPath}`,
-    `LEXORA_BUDDY_RELEASE_ASSET_NAME=${result.releaseAssetName}`,
-    `LEXORA_BUDDY_DEB_SHA256=${result.hash}`,
-    `LEXORA_BUDDY_RELEASE_REPO=${result.releaseRepo}`,
-    `LEXORA_BUDDY_RELEASE_TAG=${result.releaseTag}`,
-    '',
-  ].join('\n'))
+function readQuotedAssignment(source, key) {
+  return source.match(new RegExp(`^${key}="([^"]+)"$`, 'm'))?.[1] ?? ''
 }
 
-export function runLocalLexoraBuddyDebAssetCheck(options = {}) {
-  const result = verifyLocalLexoraBuddyDebAsset(options)
-
-  if (options.githubEnvPath)
-    writeBuddyDebGithubEnv(options.githubEnvPath, result)
-
-  writeOutput(`local deb release asset check passed: ${result.hash} ${result.releaseAssetName}`)
-
-  return result
-}
-
-function readCliOptions(argv) {
-  const githubEnvIndex = argv.indexOf('--github-env')
-
-  return {
-    githubEnvPath: githubEnvIndex === -1 ? undefined : argv[githubEnvIndex + 1],
+if (process.argv[1] && resolve(process.argv[1]) === new URL(import.meta.url).pathname) {
+  const githubEnvIndex = process.argv.indexOf('--github-env')
+  const metadata = verifyBuddyDebArtifact()
+  if (githubEnvIndex >= 0) {
+    const githubEnvPath = process.argv[githubEnvIndex + 1]
+    if (!githubEnvPath)
+      throw new Error('--github-env requires a path')
+    writeBuddyDebGithubEnv(githubEnvPath, metadata)
   }
-}
-
-if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  try {
-    runLocalLexoraBuddyDebAssetCheck(readCliOptions(process.argv.slice(2)))
-  }
-  catch (error) {
-    writeError(error.message)
-    process.exit(1)
-  }
+  writeOutput(`Buddy deb release artifact passed: ${metadata.releaseAssetName}`)
 }

@@ -3,7 +3,7 @@ shellEmulator: true
 trustPolicy: no-downgrade
 trustPolicyExclude:
   - chokidar@4.0.3
-  - semver@6.3.1
+  - 'semver@5.7.2 || 6.3.1'
   - tinyexec@1.2.2
 packages:
   - 'apps/*'
@@ -29,6 +29,8 @@ allowBuilds:
   '@prisma/engines': true
   '@scarf/scarf': true
   '@swc/core': true
+  electron: true
+  electron-winstaller: false
   esbuild: true
   msgpackr-extract: true
   openclaw: false

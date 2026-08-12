@@ -3,19 +3,14 @@ import type {
   BuddyChatTranscriptRunDetail,
   BuddyChatTranscriptRunDetailsRow,
 } from '@/chat/chatTranscriptView'
-import { ChevronDown16Regular, ChevronRight16Regular } from '@vicons/fluent'
-import { NIcon } from 'naive-ui'
-import { computed, shallowRef } from 'vue'
+import { shallowRef } from 'vue'
+import BuddyDisclosureIcon from '@/chat/BuddyDisclosureIcon.vue'
 
 const props = defineProps<{
   row: BuddyChatTranscriptRunDetailsRow
 }>()
 
 const detailsOpen = shallowRef(props.row.defaultOpen)
-const detailsToggleIcon = computed(() =>
-  detailsOpen.value ? ChevronDown16Regular : ChevronRight16Regular,
-)
-
 function handleDetailsToggle(event: Event) {
   const target = event.currentTarget
   detailsOpen.value = target instanceof HTMLDetailsElement && target.open
@@ -42,10 +37,9 @@ function resolveDetailText(detail: BuddyChatTranscriptRunDetail) {
   >
     <summary>
       <span>{{ row.summaryLabel }}</span>
-      <NIcon
-        aria-hidden="true"
+      <BuddyDisclosureIcon
         class="buddy-chat-run-details__toggle"
-        :component="detailsToggleIcon"
+        :open="detailsOpen"
       />
     </summary>
 

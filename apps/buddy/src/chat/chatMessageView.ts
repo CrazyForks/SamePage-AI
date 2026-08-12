@@ -1,6 +1,6 @@
 import type { Config } from 'dompurify'
+import type { BuddyMessage, BuddyMessageAttachment, BuddyMessageRole } from '@/desktop/localChatTypes'
 import type { BuddyTranslate } from '@/i18n/buddyI18n'
-import type { BuddyMessage, BuddyMessageAttachment, BuddyMessageRole } from '@/lib/tauriRuntime'
 import DOMPurify from 'dompurify'
 import { parse } from 'marked'
 
